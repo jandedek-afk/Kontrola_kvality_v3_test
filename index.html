@@ -31,7 +31,9 @@
     textarea{width:100%;min-height:64px;margin-top:6px;padding:10px;border-radius:8px;border:1px solid #e0e0e0;resize:vertical;font-family:inherit;font-size:0.95rem;transition:border-color 0.2s}
     textarea:focus{outline:none;border-color:var(--brand)}
     .form-section{font-weight:700;color:var(--brand);font-size:1rem;margin-top:1.25rem;padding-top:0.75rem;border-top:1px solid #eee}
-    .num-input{width:100%;margin-top:6px;padding:10px;border-radius:8px;border:1px solid #e0e0e0;font-family:inherit;font-size:0.95rem}
+    .measure-group{margin-top:1.25rem;padding:12px 14px 14px;border:1px solid #dbe7f7;border-radius:10px;background:#f4f8fe}
+    .measure-group .form-section{margin-top:0;padding-top:0;border-top:none;font-size:1.05rem}
+    .num-input{width:100%;margin-top:6px;padding:10px;border-radius:8px;border:1px solid #e0e0e0;font-family:inherit;font-size:0.95rem;background:#fff}
     .num-input:focus{outline:none;border-color:var(--brand)}
     .form-actions{margin-top:1rem;display:flex;gap:8px;align-items:center;flex-wrap:wrap}
     button{background:var(--brand);color:#fff;border:none;padding:10px 16px;border-radius:8px;font-weight:600;cursor:pointer;font-size:0.95rem;transition:opacity 0.2s}
@@ -141,11 +143,13 @@
       <form id="noteForm">
         <label>Fotka (foto nebo galerie)</label>
         <input id="photo" type="file" accept="image/*" capture="camera">
-        <div class="form-section">Rovinatost</div>
-        <label>Podélné měření</label>
-        <input id="longNote" class="num-input" type="text" inputmode="decimal" placeholder="Zadejte číslo...">
-        <label>Příčné měření</label>
-        <input id="crossNote" class="num-input" type="text" inputmode="decimal" placeholder="Zadejte číslo...">
+        <div class="measure-group">
+          <div class="form-section">Rovinatost</div>
+          <label>Podélné měření latí</label>
+          <input id="longNote" class="num-input" type="text" inputmode="decimal" placeholder="Zadejte číslo...">
+          <label>Příčné měření latí</label>
+          <input id="crossNote" class="num-input" type="text" inputmode="decimal" placeholder="Zadejte číslo...">
+        </div>
         <label>Poznámka</label>
         <textarea id="noteField" placeholder="Doplňující poznámka..."></textarea>
         <label>Složka</label>
