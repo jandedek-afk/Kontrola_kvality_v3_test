@@ -30,6 +30,9 @@
     input[type=file]{width:100%;padding:8px;border:2px dashed #e0e0e0;border-radius:8px;cursor:pointer;font-size:0.9rem}
     textarea{width:100%;min-height:64px;margin-top:6px;padding:10px;border-radius:8px;border:1px solid #e0e0e0;resize:vertical;font-family:inherit;font-size:0.95rem;transition:border-color 0.2s}
     textarea:focus{outline:none;border-color:var(--brand)}
+    .form-section{font-weight:700;color:var(--brand);font-size:1rem;margin-top:1.25rem;padding-top:0.75rem;border-top:1px solid #eee}
+    .num-input{width:100%;margin-top:6px;padding:10px;border-radius:8px;border:1px solid #e0e0e0;font-family:inherit;font-size:0.95rem}
+    .num-input:focus{outline:none;border-color:var(--brand)}
     .form-actions{margin-top:1rem;display:flex;gap:8px;align-items:center;flex-wrap:wrap}
     button{background:var(--brand);color:#fff;border:none;padding:10px 16px;border-radius:8px;font-weight:600;cursor:pointer;font-size:0.95rem;transition:opacity 0.2s}
     button:hover{opacity:0.9}
@@ -138,10 +141,11 @@
       <form id="noteForm">
         <label>Fotka (foto nebo galerie)</label>
         <input id="photo" type="file" accept="image/*" capture="camera">
+        <div class="form-section">Rovinatost</div>
         <label>Podélné měření</label>
-        <textarea id="longNote" placeholder="Zadejte podélné měření..."></textarea>
+        <input id="longNote" class="num-input" type="text" inputmode="decimal" placeholder="Zadejte číslo...">
         <label>Příčné měření</label>
-        <textarea id="crossNote" placeholder="Zadejte příčné měření..."></textarea>
+        <input id="crossNote" class="num-input" type="text" inputmode="decimal" placeholder="Zadejte číslo...">
         <label>Poznámka</label>
         <textarea id="noteField" placeholder="Doplňující poznámka..."></textarea>
         <label>Složka</label>
