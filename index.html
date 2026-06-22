@@ -1,0 +1,788 @@
+<!DOCTYPE html>
+<html lang="cs">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, shrink-to-fit=no" />
+  <title>Foto poznámky – Kontrola kvality (v3 TEST)</title>
+  <link rel="manifest" href="manifest.json?v=3.0.0-test">
+  <link rel="apple-touch-icon" href="icon192.png" sizes="192x192">
+  <link rel="apple-touch-icon" href="icon512.png" sizes="512x512">
+  <link rel="icon" href="icon192.png" type="image/png" sizes="192x192">
+  <link rel="icon" href="icon512.png" type="image/png" sizes="512x512">
+  <meta name="theme-color" content="#1976d2">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="KvalitaFoto">
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <style>
+    :root{--brand:#1976d2;--muted:#666;--danger:#ff5252}
+    *{box-sizing:border-box}
+    body{font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial;margin:0;padding:1rem;background:#f5f7fa;color:#111;max-width:1200px;margin:0 auto}
+    .header{display:flex;gap:0.75rem;align-items:center;margin-bottom:1.5rem;flex-wrap:wrap}
+    .logo{width:56px;height:56px;object-fit:contain;border-radius:8px;flex-shrink:0}
+    .header-text{flex:1;min-width:200px}
+    h1{font-size:1.25rem;margin:0;color:var(--brand)}
+    .subtitle{color:var(--muted);font-size:0.85rem;margin-top:4px}
+    form{background:#fff;padding:1rem;border-radius:12px;box-shadow:0 2px 8px rgba(0,0,0,0.06)}
+    label{font-weight:600;display:block;margin-top:0.75rem;font-size:0.95rem;color:#333}
+    input[type=file]{width:100%;padding:8px;border:2px dashed #e0e0e0;border-radius:8px;cursor:pointer;font-size:0.9rem}
+    textarea{width:100%;min-height:64px;margin-top:6px;padding:10px;border-radius:8px;border:1px solid #e0e0e0;resize:vertical;font-family:inherit;font-size:0.95rem;transition:border-color 0.2s}
+    textarea:focus{outline:none;border-color:var(--brand)}
+    .form-actions{margin-top:1rem;display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+    button{background:var(--brand);color:#fff;border:none;padding:10px 16px;border-radius:8px;font-weight:600;cursor:pointer;font-size:0.95rem;transition:opacity 0.2s}
+    button:hover{opacity:0.9}
+    button:disabled{opacity:0.5;cursor:not-allowed}
+    .btn-secondary{background:#f1f3f6;color:#333}
+    .btn-danger{background:var(--danger)}
+    #status{margin-left:8px;color:var(--muted);font-size:0.9rem}
+    .entries{margin-top:1.5rem;display:grid;gap:1rem}
+    .entry{background:#fff;padding:1rem;border-radius:12px;box-shadow:0 2px 6px rgba(0,0,0,0.04);display:grid;gap:1rem;transition:box-shadow 0.2s}
+    .entry:hover{box-shadow:0 4px 12px rgba(0,0,0,0.08)}
+    .entry-content{display:grid;grid-template-columns:140px 1fr;gap:1rem;align-items:start}
+    .thumb{width:100%;height:100px;object-fit:cover;border-radius:8px;border:1px solid #e6eef9}
+    .meta{display:flex;flex-direction:column;gap:8px}
+    .meta-header{display:flex;justify-content:space-between;align-items:start;gap:8px;flex-wrap:wrap}
+    .meta-header strong{font-size:0.95rem}
+    .meta-info{color:var(--muted);font-size:0.85rem}
+    .meta p{margin:0;font-size:0.9rem;color:#333;line-height:1.5}
+    .meta p strong{color:#111;font-size:0.88rem}
+    .actions{display:flex;gap:8px;margin-top:8px;flex-wrap:wrap}
+    .btn-small{background:#f1f3f6;color:#333;padding:6px 12px;border-radius:6px;border:none;cursor:pointer;font-size:0.85rem;font-weight:500}
+    .btn-small:hover{background:#e8eaed}
+    .btn-small.danger{background:var(--danger);color:#fff}
+    .btn-small.danger:hover{background:#e64545}
+    .folders{margin-top:1.5rem;display:grid;gap:1rem;grid-template-columns:repeat(auto-fill, minmax(200px, 1fr))}
+    .folder{background:#fff;padding:1rem;border-radius:12px;box-shadow:0 2px 6px rgba(0,0,0,0.04);cursor:pointer;text-align:center;transition:box-shadow 0.2s}
+    .folder:hover{box-shadow:0 4px 12px rgba(0,0,0,0.08)}
+    .folder-name{font-weight:600;font-size:1.1rem;color:var(--brand)}
+    .folder-count{font-size:0.9rem;color:var(--muted);margin-top:4px}
+    footer{margin-top:2rem;padding-top:1rem;text-align:center;color:var(--muted);font-size:0.85rem;border-top:1px solid #e0e0e0}
+    #viewer{position:fixed;inset:0;display:none;align-items:center;justify-content:center;z-index:9999}
+    #viewer[aria-hidden="false"]{display:flex}
+    #viewer-backdrop{position:absolute;inset:0;background:rgba(0,0,0,0.5)}
+    #viewer-content{position:relative;max-width:1100px;width:100%;max-height:95vh;overflow:auto;background:#fff;border-radius:12px;padding:16px;box-shadow:0 10px 30px rgba(0,0,0,0.4)}
+    #viewer-close{position:absolute;right:8px;top:8px;border:none;background:transparent;font-size:20px;cursor:pointer}
+    #viewer-body img{max-width:100%;height:auto;border-radius:8px;border:1px solid #ddd;display:block;margin:12px 0}
+    #viewer-body h1{font-size:1.6rem;color:var(--brand);margin:0 0 8px 0}
+    #viewer-body .meta{font-size:1rem;color:var(--muted);margin-bottom:8px}
+    #viewer-body .field{background:#f9f9f9;padding:12px;border-left:4px solid var(--brand);border-radius:6px;margin-top:10px}
+    /* update banner */
+    .update-banner{position:fixed;left:12px;right:12px;bottom:12px;background:#fff;border-radius:10px;box-shadow:0 8px 24px rgba(0,0,0,0.18);padding:10px 12px;display:flex;align-items:center;gap:12px;z-index:10000}
+    .update-banner .msg{flex:1;color:#111}
+    .update-banner button{padding:8px 12px;border-radius:8px;border:none;cursor:pointer}
+    .update-banner .primary{background:var(--brand);color:#fff}
+    .update-banner .secondary{background:#f1f3f6;color:#333}
+    @media (max-width:768px){body{padding:0.75rem}.thumb{height:80px}.entry-content{grid-template-columns:100px 1fr}}
+    /* login */
+    #login-overlay{position:fixed;inset:0;background:#f5f7fa;display:flex;align-items:center;justify-content:center;z-index:20000;padding:1rem}
+    #login-box{background:#fff;padding:1.5rem;border-radius:12px;box-shadow:0 8px 24px rgba(0,0,0,0.12);max-width:360px;width:100%}
+    #login-box h2{margin:0 0 4px 0;color:var(--brand);font-size:1.2rem}
+    #login-box .hint{color:var(--muted);font-size:0.85rem;margin-bottom:1rem}
+    #login-box input{width:100%;padding:10px;border:1px solid #e0e0e0;border-radius:8px;font-size:0.95rem;margin-top:8px}
+    #login-box button{width:100%;margin-top:10px}
+    #login-msg{margin-top:10px;font-size:0.85rem;min-height:1em}
+    #login-msg.err{color:var(--danger)}
+    #login-msg.ok{color:#2e7d32}
+    /* user bar */
+    .user-bar{display:flex;align-items:center;gap:10px;flex-wrap:wrap;background:#fff;padding:8px 12px;border-radius:10px;box-shadow:0 2px 6px rgba(0,0,0,0.04);margin-bottom:1rem;font-size:0.88rem}
+    .user-bar .who{color:var(--muted)}
+    .user-bar .who b{color:#111}
+    .user-bar .sync-state{margin-left:auto;color:var(--muted)}
+    .badge-unsynced{display:inline-block;background:#fff3cd;color:#8a6d00;border-radius:6px;padding:1px 6px;font-size:0.75rem;margin-left:6px}
+  </style>
+</head>
+<body>
+      <!-- Přihlašovací obrazovka -->
+      <div id="login-overlay">
+        <div id="login-box">
+          <h2>Kontrola kvality</h2>
+          <div class="hint">Přihlaste se pro přístup k záznamům (verze v3 TEST).</div>
+          <input id="login-email" type="email" placeholder="E-mail" autocomplete="username">
+          <input id="login-password" type="password" placeholder="Heslo (min. 6 znaků)" autocomplete="current-password">
+          <button id="login-signin" type="button">Přihlásit se</button>
+          <button id="login-signup" type="button" class="btn-secondary">Vytvořit účet</button>
+          <div id="login-msg"></div>
+        </div>
+      </div>
+
+      <div class="user-bar" id="user-bar" style="display:none">
+        <span class="who">Přihlášen: <b id="user-email"></b></span>
+        <button id="sync-now" type="button" class="btn-small">Synchronizovat</button>
+        <button id="logout-btn" type="button" class="btn-small">Odhlásit</button>
+        <span class="sync-state" id="sync-status"></span>
+      </div>
+
+      <div class="header">
+        <img src="icon2.png" alt="logo" class="logo" onerror="this.style.display='none'">
+        <div class="header-text">
+          <h1>Kontrola kvality – Foto poznámky</h1>
+          <div class="subtitle">Fotka + podélné & příčné měření + poznámka + GPS + datum</div>
+        </div>
+      </div>
+
+      <form id="noteForm">
+        <label>Fotka (foto nebo galerie)</label>
+        <input id="photo" type="file" accept="image/*" capture="camera">
+        <label>Podélné měření</label>
+        <textarea id="longNote" placeholder="Zadejte podélné měření..."></textarea>
+        <label>Příčné měření</label>
+        <textarea id="crossNote" placeholder="Zadejte příčné měření..."></textarea>
+        <label>Poznámka</label>
+        <textarea id="noteField" placeholder="Doplňující poznámka..."></textarea>
+        <label>Složka</label>
+        <input id="folderName" placeholder="Název složky (nepovinné)..." style="width: 100%; padding: 10px; border-radius: 8px; border: 1px solid #e0e0e0; font-family: inherit; font-size: 0.95rem; margin-top: 6px;">
+        <div class="form-actions">
+          <button id="saveBtn" type="submit">Uložit záznam</button>
+          <button id="show-map" type="button" style="background:var(--brand);color:#fff;">Zobrazit mapu záznamů</button>
+          <button id="clearAll" type="button" class="btn-secondary">Vymazat vše</button>
+          <button id="exportBtn" type="button" class="btn-secondary">Exportovat data</button>
+          <button id="importBtn" type="button" class="btn-secondary">Importovat data</button>
+          <div id="status"></div>
+          <input type="file" id="importFile" accept=".json" style="display: none;">
+        </div>
+      </form>
+
+      <button id="backToFoldersBtn" type="button" class="btn-secondary" style="display: none; margin-top: 1rem;">Zpět na složky</button>
+      <section class="folders" id="folders"></section>
+      <section class="entries" id="entries"></section>
+
+      <!-- Map overlay -->
+      <div id="map-overlay" aria-hidden="true" style="position:fixed;inset:0;display:none;z-index:99999;background:rgba(0,0,0,0.5);align-items:center;justify-content:center;">
+          <div id="map-content" style="position:relative;background:#fff;border-radius:12px;box-shadow:0 10px 30px rgba(0,0,0,0.4);padding:16px;max-width:1100px;width:95vw;max-height:95vh;display:flex;flex-direction:column;">
+            <button id="map-close" aria-label="Zavřít mapu" title="Zavřít mapu" style="position:absolute;right:12px;top:12px;background:var(--brand);color:#fff;border:none;width:36px;height:36px;border-radius:50%;font-size:18px;line-height:1;cursor:pointer;display:flex;align-items:center;justify-content:center;">✕</button>
+          <h2 style="margin-top:0">Mapa záznamů</h2>
+          <div id="map" style="width:100%;height:70vh;border-radius:8px;"></div>
+        </div>
+      </div>
+
+      <div id="viewer" aria-hidden="true">
+        <div id="viewer-backdrop"></div>
+        <div id="viewer-content" role="dialog" aria-modal="true">
+          <button id="viewer-close" aria-label="Zavřít">✕</button>
+          <div id="viewer-body"></div>
+          <div id="edit-map-container" style="display:none; margin-top: 1rem;">
+            <div id="edit-map" style="height: 400px; width: 100%;"></div>
+            <button id="save-coords-btn" class="btn-small" style="margin-top: 8px;">Uložit souřadnice</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- update banner (hidden until new SW available) -->
+      <div id="update-banner" class="update-banner" style="display:none">
+        <div class="msg">Nová verze aplikace je dostupná.</div>
+        <button id="update-now" class="primary">Aktualizovat</button>
+        <button id="update-later" class="secondary">Později</button>
+      </div>
+
+      <footer>
+        Aplikace funguje offline. Data jsou uložena lokálně v zařízení (IndexedDB).<br>
+        <span style="color:var(--muted);font-size:0.95em;">Verze aplikace: v2.2.9</span>
+      </footer>
+
+      <script>
+      // --- Supabase (cloud sdílení) ---
+      const SUPABASE_URL = 'https://wkqqjladzvelnvwcstok.supabase.co';
+      const SUPABASE_KEY = 'sb_publishable_LpaZpXDEEA6Wg2StewdZ2Q_slO5TwI_';
+      const PHOTO_BUCKET = 'photos';
+      const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+      // Lightweight IndexedDB helpers
+      const DB_NAME = 'fotoPoznamkyDB';
+      const DB_VERSION = 2;
+      const STORE_NAME = 'entries';
+      let db;
+
+      function initDB(){
+        return new Promise((res, rej)=>{
+          const req = indexedDB.open(DB_NAME, DB_VERSION);
+          req.onupgradeneeded = e => {
+            const idb = e.target.result;
+            if(!idb.objectStoreNames.contains(STORE_NAME)){
+              const store = idb.createObjectStore(STORE_NAME,{keyPath:'id'});
+              store.createIndex('time','time',{unique:false});
+              store.createIndex('folder', 'folder', { unique: false });
+            }
+          };
+          req.onsuccess = ()=>{ db = req.result; res(db); };
+          req.onerror = ()=> rej(req.error);
+        });
+      }
+
+      function addEntry(entry){
+        return new Promise((res, rej)=>{
+          const tx = db.transaction([STORE_NAME],'readwrite');
+          const store = tx.objectStore(STORE_NAME);
+          const r = store.add(entry);
+          r.onsuccess = ()=> res(entry);
+          r.onerror = ()=> rej(r.error);
+        });
+      }
+
+      function updateEntry(entry) {
+        return new Promise((res, rej) => {
+          const tx = db.transaction([STORE_NAME], 'readwrite');
+          const store = tx.objectStore(STORE_NAME);
+          const r = store.put(entry);
+          r.onsuccess = () => res(entry);
+          r.onerror = () => rej(r.error);
+        });
+      }
+
+      function getAllEntries(){
+        return new Promise((res, rej)=>{
+          const tx = db.transaction([STORE_NAME],'readonly');
+          const store = tx.objectStore(STORE_NAME);
+          const r = store.getAll();
+          r.onsuccess = ()=>{
+            const arr = r.result || [];
+            arr.sort((a,b)=>b.time - a.time);
+            res(arr);
+          };
+          r.onerror = ()=> rej(r.error);
+        });
+      }
+
+      function deleteEntryById(id){
+        return new Promise((res, rej)=>{
+          const tx = db.transaction([STORE_NAME],'readwrite');
+          const store = tx.objectStore(STORE_NAME);
+          const r = store.delete(id);
+          r.onsuccess = ()=> res();
+          r.onerror = ()=> rej(r.error);
+        });
+      }
+
+      function fileToBase64(file){
+        return new Promise((res, rej)=>{
+          const fr = new FileReader(); fr.onload = ()=> res(fr.result); fr.onerror = ()=> rej(fr.error); fr.readAsDataURL(file);
+        });
+      }
+
+      // Zmenší a zkomprimuje fotku (zachová orientaci z EXIF). Vrací JPEG dataURL.
+      // Tím se velikost jedné fotky sníží z ~3–5 MB na ~200–400 kB.
+      async function compressImage(file, maxDim = 1600, quality = 0.7){
+        if(!file.type || !file.type.startsWith('image/')) return fileToBase64(file);
+        let bitmap;
+        try {
+          bitmap = await createImageBitmap(file, { imageOrientation: 'from-image' });
+        } catch(e) {
+          // Fallback pro starší prohlížeče bez createImageBitmap
+          return fileToBase64(file);
+        }
+        let { width, height } = bitmap;
+        const scale = Math.min(1, maxDim / Math.max(width, height));
+        const w = Math.round(width * scale);
+        const h = Math.round(height * scale);
+        const canvas = document.createElement('canvas');
+        canvas.width = w; canvas.height = h;
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(bitmap, 0, 0, w, h);
+        bitmap.close && bitmap.close();
+        return canvas.toDataURL('image/jpeg', quality);
+      }
+
+      function formatDate(ts){
+        return new Date(ts).toLocaleString('cs-CZ', { day:'2-digit', month:'2-digit', year:'numeric', hour:'2-digit', minute:'2-digit' });
+      }
+
+      // --- Cloud sync helpers ---
+      function dataURLtoBlob(dataURL){
+        const [head, b64] = dataURL.split(',');
+        const mime = (head.match(/:(.*?);/) || [,'image/jpeg'])[1];
+        const bin = atob(b64);
+        const arr = new Uint8Array(bin.length);
+        for(let i=0;i<bin.length;i++) arr[i] = bin.charCodeAt(i);
+        return new Blob([arr], { type: mime });
+      }
+      function blobToDataURL(blob){
+        return new Promise((res, rej)=>{ const fr=new FileReader(); fr.onload=()=>res(fr.result); fr.onerror=()=>rej(fr.error); fr.readAsDataURL(blob); });
+      }
+
+      function setSyncStatus(text){ const el=document.getElementById('sync-status'); if(el) el.textContent = text; }
+
+      // Nahraje jeden lokální záznam do cloudu (fotka do úložiště, řádek do tabulky)
+      async function pushEntry(entry){
+        try{
+          const path = `${entry.id}.jpg`;
+          if(entry.photo){
+            const blob = dataURLtoBlob(entry.photo);
+            const { error: upErr } = await sb.storage.from(PHOTO_BUCKET).upload(path, blob, { contentType:'image/jpeg', upsert:true });
+            if(upErr) throw upErr;
+          }
+          const { data:{ user } } = await sb.auth.getUser();
+          const row = {
+            id: entry.id, time: entry.time, time_text: entry.timeText, coords: entry.coords,
+            long_note: entry.longNote, cross_note: entry.crossNote, note: entry.note,
+            folder: entry.folder, photo_path: entry.photo ? path : null, owner: user ? user.id : null
+          };
+          const { error } = await sb.from('entries').upsert(row);
+          if(error) throw error;
+          entry.synced = true;
+          await updateEntry(entry);
+          return true;
+        }catch(err){ console.warn('pushEntry selhal:', err.message||err); return false; }
+      }
+
+      // Pošle do cloudu všechny zatím nesynchronizované lokální záznamy
+      async function pushUnsynced(){
+        const local = await getAllEntries();
+        const pending = local.filter(e => !e.synced);
+        let ok = 0;
+        for(const e of pending){ if(await pushEntry(e)) ok++; }
+        return { total: pending.length, ok };
+      }
+
+      // Stáhne z cloudu záznamy, které lokálně ještě nejsou
+      async function pullFromCloud(){
+        const { data: rows, error } = await sb.from('entries').select('*');
+        if(error) throw error;
+        const local = await getAllEntries();
+        const localIds = new Set(local.map(e=>e.id));
+        let added = 0;
+        for(const r of rows){
+          if(localIds.has(r.id)) continue;
+          let photo = '';
+          if(r.photo_path){
+            const { data: blob, error: dlErr } = await sb.storage.from(PHOTO_BUCKET).download(r.photo_path);
+            if(!dlErr && blob) photo = await blobToDataURL(blob);
+          }
+          const entry = { id:r.id, time:r.time, timeText:r.time_text, coords:r.coords,
+            longNote:r.long_note, crossNote:r.cross_note, note:r.note, photo, folder:r.folder, synced:true };
+          try{ await addEntry(entry); added++; }catch(e){ /* už existuje */ }
+        }
+        return added;
+      }
+
+      // Obousměrná synchronizace
+      let syncing = false;
+      async function syncNow(){
+        if(syncing) return;
+        if(!navigator.onLine){ setSyncStatus('● offline'); return; }
+        syncing = true;
+        setSyncStatus('synchronizuji…');
+        try{
+          const pushed = await pushUnsynced();
+          const pulled = await pullFromCloud();
+          await renderFoldersAndEntries();
+          setSyncStatus(`✓ hotovo (↑${pushed.ok} ↓${pulled})`);
+        }catch(err){ setSyncStatus('✕ chyba synchronizace'); console.warn('sync:', err.message||err); }
+        finally{ syncing = false; }
+      }
+
+      // --- Auth ---
+      async function showApp(session){
+        document.getElementById('login-overlay').style.display = 'none';
+        document.getElementById('user-bar').style.display = 'flex';
+        document.getElementById('user-email').textContent = session.user.email || '';
+        await renderFoldersAndEntries();
+        await syncNow();
+      }
+      function showLogin(){
+        document.getElementById('login-overlay').style.display = 'flex';
+        document.getElementById('user-bar').style.display = 'none';
+      }
+
+      async function saveEntry(photoFile, longNote, crossNote, note, folderName){
+        const coords = await (async ()=>{
+          if(!('geolocation' in navigator)) return null;
+          return new Promise(res=> navigator.geolocation.getCurrentPosition(p=>res({lat:p.coords.latitude.toFixed(6), lon:p.coords.longitude.toFixed(6)}), ()=>res(null), {enableHighAccuracy:true, timeout:8000}));
+        })();
+        const photoData = await compressImage(photoFile);
+        const entry = { id:Date.now().toString(), time:Date.now(), timeText:formatDate(Date.now()), coords, longNote, crossNote, note, photo:photoData, folder:folderName, synced:false };
+        await addEntry(entry);
+        // Pokus o okamžité nahrání do cloudu (offline-safe: když selže, zůstane k synchronizaci)
+        if(navigator.onLine){ pushEntry(entry).then(ok=> setSyncStatus(ok ? '✓ uloženo do cloudu' : '⏳ uloženo lokálně, čeká na sync')); }
+        else { setSyncStatus('● offline – uloženo lokálně'); }
+        return entry;
+      }
+
+      function escapeHtml(s){ return (s||'').replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;').replaceAll('"','&quot;'); }
+
+      function downloadPhoto(dataURL, id){ if(!dataURL){ alert('Fotografie není dostupná pro stažení.'); return; } const a=document.createElement('a'); a.href=dataURL; a.download=`fotopoznamka_${id}.jpg`; document.body.appendChild(a); a.click(); a.remove(); }
+
+      async function renderFoldersAndEntries(folderToShow = null) {
+        const allEntries = await getAllEntries();
+        const foldersEl = document.getElementById('folders');
+        const entriesEl = document.getElementById('entries');
+        const statusEl = document.getElementById('status');
+        const backBtn = document.getElementById('backToFoldersBtn');
+
+        foldersEl.innerHTML = '';
+        entriesEl.innerHTML = '';
+
+        if (folderToShow === null) {
+            // FOLDERS VIEW
+            backBtn.style.display = 'none';
+            const folders = allEntries.reduce((acc, entry) => {
+                const folderName = entry.folder || 'Bez složky';
+                if (!acc[folderName]) {
+                    acc[folderName] = 0;
+                }
+                acc[folderName]++;
+                return acc;
+            }, {});
+
+            Object.keys(folders).sort().forEach(folderName => {
+                const div = document.createElement('div');
+                div.className = 'folder';
+                
+                const folderNameEl = document.createElement('div');
+                folderNameEl.className = 'folder-name';
+                folderNameEl.textContent = escapeHtml(folderName);
+                folderNameEl.addEventListener('click', () => renderFoldersAndEntries(folderName));
+
+                const folderCountEl = document.createElement('div');
+                folderCountEl.className = 'folder-count';
+                folderCountEl.textContent = `${folders[folderName]} ${folders[folderName] === 1 ? 'záznam' : 'záznamy'}`;
+
+                const actionsDiv = document.createElement('div');
+                actionsDiv.style.marginTop = '8px';
+                actionsDiv.style.display = 'flex';
+                actionsDiv.style.gap = '8px';
+                actionsDiv.style.justifyContent = 'center';
+
+                const renameBtn = document.createElement('button');
+                renameBtn.className = 'btn-small';
+                renameBtn.textContent = 'Přejmenovat';
+                renameBtn.onclick = async (e) => {
+                    e.stopPropagation();
+                    const newFolderName = prompt('Zadejte nový název složky:', folderName);
+                    if (newFolderName && newFolderName.trim() && newFolderName.trim() !== folderName) {
+                        const entriesToUpdate = allEntries.filter(entry => (entry.folder || 'Bez složky') === folderName);
+                        for (const entry of entriesToUpdate) {
+                            entry.folder = newFolderName.trim();
+                            await updateEntry(entry);
+                        }
+                        await renderFoldersAndEntries();
+                    }
+                };
+
+                const exportFolderBtn = document.createElement('button');
+                exportFolderBtn.className = 'btn-small';
+                exportFolderBtn.textContent = 'Exportovat';
+                exportFolderBtn.onclick = async (e) => {
+                    e.stopPropagation();
+                    const entriesToExport = allEntries.filter(entry => (entry.folder || 'Bez složky') === folderName);
+                    const dateStr = new Date().toISOString().split('T')[0];
+                    const a = document.createElement('a');
+                    const sanitizedFolderName = folderName.replace(/[^a-z0-9]/gi, '_').toLowerCase();
+                    a.href = URL.createObjectURL(new Blob([JSON.stringify(entriesToExport, null, 2)], {type:'application/json'}));
+                    a.download = `složka_${sanitizedFolderName}_${dateStr}.json`;
+                    document.body.appendChild(a);
+                    a.click();
+                    a.remove();
+                };
+
+                actionsDiv.appendChild(renameBtn);
+                actionsDiv.appendChild(exportFolderBtn);
+
+                div.appendChild(folderNameEl);
+                div.appendChild(folderCountEl);
+                div.appendChild(actionsDiv);
+                foldersEl.appendChild(div);
+            });
+            
+            statusEl.textContent = `${Object.keys(folders).length} ${Object.keys(folders).length === 1 ? 'složka' : 'složky'}`;
+            document.getElementById('noteForm').style.display = '';
+
+        } else {
+            // ENTRIES VIEW
+            backBtn.style.display = 'block';
+            foldersEl.innerHTML = `<h2>Složka: ${escapeHtml(folderToShow)}</h2>`;
+            const entriesInFolder = allEntries.filter(e => (e.folder || 'Bez složky') === folderToShow);
+
+            entriesInFolder.forEach(e => {
+                const div = document.createElement('div');
+                div.className = 'entry';
+                const coordsText = e.coords ? `${e.coords.lat}, ${e.coords.lon}` : 'bez polohy';
+                let notesHtml = '';
+                if (e.longNote) notesHtml += `<p><strong>📏 Podélné měření:</strong> ${escapeHtml(e.longNote)}</p>`;
+                if (e.crossNote) notesHtml += `<p><strong>↔️ Příčné měření:</strong> ${escapeHtml(e.crossNote)}</p>`;
+                if (e.note) notesHtml += `<p><strong>📝 Poznámka:</strong> ${escapeHtml(e.note)}</p>`;
+                const syncBadge = e.synced ? '' : '<span class="badge-unsynced">⏳ nesynch.</span>';
+                div.innerHTML = `<div class="entry-content"><img class="thumb" src="${e.photo}" alt="foto"><div class="meta"><div class="meta-header"><strong>${e.timeText}${syncBadge}</strong><span class="meta-info">${coordsText}</span></div>${notesHtml}<div class="actions"><button class="btn-small view-btn" data-id="${e.id}">Zobrazit</button><button class="btn-small danger delete-btn" data-id="${e.id}">Smazat</button><button class="btn-small download-btn" data-id="${e.id}">Stáhnout foto</button><button class="btn-small move-btn" data-id="${e.id}">Přesunout</button></div></div></div>`;
+                div.querySelector('.view-btn').addEventListener('click', () => viewFull(e.id));
+                div.querySelector('.delete-btn').addEventListener('click', async () => { if (confirm('Opravdu smazat tento záznam?')) { await deleteEntryById(e.id); await renderFoldersAndEntries(folderToShow); } });
+                div.querySelector('.download-btn').addEventListener('click', () => downloadPhoto(e.photo, e.id));
+                div.querySelector('.move-btn').addEventListener('click', async () => {
+                    const allEntries = await getAllEntries();
+                    const entryToMove = allEntries.find(entry => entry.id === e.id);
+                    if (!entryToMove) {
+                        alert('Záznam nebyl nalezen.');
+                        return;
+                    }
+
+                    const existingFolders = [...new Set(allEntries.map(entry => entry.folder).filter(f => f && f.trim()))];
+                    const currentFolder = entryToMove.folder || 'Bez složky';
+
+                    const newFolderName = prompt(
+                        `Kam chcete záznam přesunout?\n\nAktuální složka: "${currentFolder}"\n\nZadejte název cílové složky. Můžete zadat existující nebo novou složku.\nExistující složky: ${existingFolders.join(', ')}`,
+                        currentFolder === 'Bez složky' ? '' : currentFolder
+                    );
+
+                    if (newFolderName !== null) {
+                        const targetFolder = newFolderName.trim();
+                        const sourceFolder = entryToMove.folder || '';
+                        if (targetFolder !== sourceFolder) {
+                             entryToMove.folder = targetFolder;
+                             await updateEntry(entryToMove);
+                             await renderFoldersAndEntries(folderToShow);
+                             alert('Záznam byl přesunut.');
+                        }
+                    }
+                });
+                entriesEl.appendChild(div);
+            });
+            statusEl.textContent = `${entriesInFolder.length} ${entriesInFolder.length === 1 ? 'záznam' : 'záznamy'}`;
+            document.getElementById('noteForm').style.display = 'none';
+        }
+    }
+      
+      async function render(){
+        await renderFoldersAndEntries();
+      }
+
+      async function viewFull(id){
+        const data = await getAllEntries(); const entry = data.find(d=>d.id===id); if(!entry){ alert('Záznam nenalezen'); return; }
+        const viewer=document.getElementById('viewer'); const body=document.getElementById('viewer-body'); const coordsText = entry.coords?`${entry.coords.lat}, ${entry.coords.lon}`:'bez polohy';
+        body.innerHTML = `
+          <h1>Záznam z kontroly kvality</h1>
+          <div class="meta"><strong>📅 Čas:</strong> ${entry.timeText} &nbsp; <strong>📍 Poloha:</strong> <span id="coords-display">${coordsText}</span></div>
+          <img src="${entry.photo}" alt="Fotografie záznamu">
+          ${entry.longNote?`<div class="field"><strong>📏 Podélné měření</strong><div class="field-value">${escapeHtml(entry.longNote)}</div></div>`:''}
+          ${entry.crossNote?`<div class="field"><strong>↔️ Příčné měření</strong><div class="field-value">${escapeHtml(entry.crossNote)}</div></div>`:''}
+          ${entry.note?`<div class="field"><strong>📝 Poznámka</strong><div class="field-value">${escapeHtml(entry.note)}</div></div>`:''}
+          <div style="margin-top:12px;display:flex;gap:8px;flex-wrap:wrap">
+            <button id="viewer-download" class="btn-small">Stáhnout foto</button>
+            <button id="edit-coords-btn" class="btn-small">Upravit souřadnice</button>
+            <button id="viewer-delete" class="btn-small danger">Smazat záznam</button>
+          </div>
+          <footer>Kontrola kvality – Foto poznámky | ${new Date().toLocaleDateString('cs-CZ')}</footer>
+        `;
+        viewer.setAttribute('aria-hidden','false'); viewer.style.display='flex'; document.documentElement.style.overflow='hidden';
+        
+        const editMapContainer = document.getElementById('edit-map-container');
+        const saveCoordsBtn = document.getElementById('save-coords-btn');
+        let editMap;
+        let marker;
+
+        document.getElementById('edit-coords-btn').onclick = () => {
+            editMapContainer.style.display = 'block';
+            if (!editMap) {
+                editMap = L.map('edit-map').setView(entry.coords ? [entry.coords.lat, entry.coords.lon] : [49.8, 15.5], 13);
+                L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(editMap);
+            }
+            if (marker) {
+                editMap.removeLayer(marker);
+            }
+            if (entry.coords) {
+                marker = L.marker([entry.coords.lat, entry.coords.lon], { draggable: true }).addTo(editMap);
+                editMap.setView([entry.coords.lat, entry.coords.lon], 16);
+            } else {
+                marker = L.marker(editMap.getCenter(), { draggable: true }).addTo(editMap);
+                 editMap.setView([49.8, 15.5], 7);
+            }
+        };
+
+        saveCoordsBtn.onclick = async () => {
+            const newCoords = marker.getLatLng();
+            entry.coords = { lat: newCoords.lat.toFixed(6), lon: newCoords.lng.toFixed(6) };
+            await updateEntry(entry);
+            document.getElementById('coords-display').textContent = `${entry.coords.lat}, ${entry.coords.lon}`;
+            editMapContainer.style.display = 'none';
+            alert('Souřadnice aktualizovány.');
+        };
+
+        const closeViewer = () => {
+            viewer.setAttribute('aria-hidden','true');
+            viewer.style.display='none';
+            document.documentElement.style.overflow='';
+            editMapContainer.style.display = 'none';
+            if (editMap) {
+                editMap.remove();
+                editMap = null;
+            }
+        };
+
+        document.getElementById('viewer-close').onclick = closeViewer; 
+        document.getElementById('viewer-backdrop').onclick = closeViewer;
+        document.getElementById('viewer-download').onclick = ()=> downloadPhoto(entry.photo, entry.id);
+        document.getElementById('viewer-delete').onclick = async ()=>{ if(confirm('Opravdu smazat tento záznam?')){ await deleteEntryById(entry.id); closeViewer(); await renderFoldersAndEntries(); }};
+      }
+
+      // Update-banner helpers
+      function showUpdateBanner(reg){
+        const banner = document.getElementById('update-banner'); banner.style.display = 'flex';
+        const now = document.getElementById('update-now'); const later = document.getElementById('update-later');
+        const onNow = async ()=>{
+          banner.style.display='none';
+          try{
+            if(reg.waiting){ reg.waiting.postMessage({type:'SKIP_WAITING'}); }
+          }catch(e){ console.warn('Failed to postMessage to SW', e); }
+        };
+        const onLater = ()=>{ banner.style.display='none'; };
+        now.onclick = onNow; later.onclick = onLater;
+      }
+
+      // wire up form and registration
+      document.addEventListener('DOMContentLoaded', async ()=>{
+        await initDB();
+
+        // --- Přihlášení ---
+        const loginMsg = document.getElementById('login-msg');
+        const setLoginMsg = (txt, cls='') => { loginMsg.textContent = txt; loginMsg.className = cls; };
+        const getCreds = () => ({
+          email: document.getElementById('login-email').value.trim(),
+          password: document.getElementById('login-password').value
+        });
+
+        document.getElementById('login-signin').addEventListener('click', async ()=>{
+          const { email, password } = getCreds();
+          if(!email || !password){ setLoginMsg('Zadejte e-mail a heslo.', 'err'); return; }
+          setLoginMsg('Přihlašuji…');
+          const { error } = await sb.auth.signInWithPassword({ email, password });
+          if(error) setLoginMsg('Chyba: ' + error.message, 'err');
+        });
+
+        document.getElementById('login-signup').addEventListener('click', async ()=>{
+          const { email, password } = getCreds();
+          if(!email || password.length < 6){ setLoginMsg('Zadejte e-mail a heslo (min. 6 znaků).', 'err'); return; }
+          setLoginMsg('Vytvářím účet…');
+          const { data, error } = await sb.auth.signUp({ email, password });
+          if(error){ setLoginMsg('Chyba: ' + error.message, 'err'); }
+          else if(data.session){ setLoginMsg('Účet vytvořen.', 'ok'); }
+          else { setLoginMsg('Účet vytvořen. Zkontrolujte e-mail pro potvrzení, pak se přihlaste.', 'ok'); }
+        });
+
+        document.getElementById('logout-btn').addEventListener('click', async ()=>{ await sb.auth.signOut(); });
+        document.getElementById('sync-now').addEventListener('click', ()=> syncNow());
+        window.addEventListener('online', ()=> syncNow());
+        window.addEventListener('offline', ()=> setSyncStatus('● offline'));
+
+        // Reakce na změnu přihlášení
+        sb.auth.onAuthStateChange(async (_event, session)=>{
+          if(session){ await showApp(session); } else { showLogin(); }
+        });
+        // Počáteční stav
+        const { data:{ session } } = await sb.auth.getSession();
+        if(session){ await showApp(session); } else { showLogin(); }
+
+        document.getElementById('backToFoldersBtn').addEventListener('click', () => renderFoldersAndEntries());
+
+        const mapOverlay = document.getElementById('map-overlay');
+        const mapCloseBtn = document.getElementById('map-close');
+        let mapInstance = null;
+
+        // Map button handler
+        setTimeout(()=>{
+          const showMapBtn = document.getElementById('show-map');
+          if(showMapBtn){
+            showMapBtn.addEventListener('click', async ()=>{
+              try{
+                mapOverlay.setAttribute('aria-hidden','false');
+                mapOverlay.style.display = 'flex';
+                document.documentElement.style.overflow='hidden';
+                // Wait a moment for DOM to render
+                await new Promise(r => setTimeout(r, 100));
+                // Get all entries with coords
+                const entries = await getAllEntries();
+                const points = entries.filter(e=>e.coords && e.coords.lat && e.coords.lon);
+                // Init map only once
+                if(!mapInstance){
+                  mapInstance = L.map('map').setView([49.8, 15.5], 7);
+                  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                  
+                    attribution: 'Map data © <a href="https://openstreetmap.org">OpenStreetMap</a> contributors',
+                    maxZoom: 18,
+                  }).addTo(mapInstance);
+                }
+                // Invalidate size after showing
+                mapInstance.invalidateSize();
+                // Remove old markers
+                mapInstance.eachLayer(layer => { if(layer instanceof L.Marker) mapInstance.removeLayer(layer); });
+                // Add markers
+                points.forEach(e=>{
+                  const marker = L.marker([parseFloat(e.coords.lat), parseFloat(e.coords.lon)]).addTo(mapInstance);
+                  marker.bindPopup(`<strong>${e.timeText}</strong><br>${e.longNote||''}<br>${e.crossNote||''}<br>${e.note||''}`);
+                });
+                if(points.length){
+                  const bounds = L.latLngBounds(points.map(e=>[parseFloat(e.coords.lat), parseFloat(e.coords.lon)]));
+                  mapInstance.fitBounds(bounds.pad(0.15));
+                }
+              }catch(err){
+                console.error('Chyba mapy:', err);
+                alert('Chyba při otevírání mapy: '+err.message);
+              }
+            });
+          }
+        }, 100);
+        mapCloseBtn.onclick = ()=>{
+          mapOverlay.setAttribute('aria-hidden','true');
+          mapOverlay.style.display = 'none';
+          document.documentElement.style.overflow='';
+        };
+        const form = document.getElementById('noteForm');
+        form.addEventListener('submit', async (e)=>{ 
+            e.preventDefault(); 
+            const fileInput=document.getElementById('photo'); 
+            if(!fileInput.files || fileInput.files.length===0){ alert('Vyberte fotografii.'); return; } 
+            const longNote=document.getElementById('longNote').value.trim(); 
+            const crossNote=document.getElementById('crossNote').value.trim(); 
+            const note=document.getElementById('noteField').value.trim(); 
+            const folderName = document.getElementById('folderName').value.trim();
+            await saveEntry(fileInput.files[0], longNote, crossNote, note, folderName); 
+            fileInput.value=''; 
+            document.getElementById('longNote').value=''; 
+            document.getElementById('crossNote').value=''; 
+            document.getElementById('noteField').value=''; 
+            document.getElementById('folderName').value='';
+            await renderFoldersAndEntries(); 
+            alert('Záznam uložen.'); 
+        });
+
+        document.getElementById('clearAll').addEventListener('click', async ()=>{ if(confirm('Opravdu vymazat všechna data?')){ const tx=db.transaction([STORE_NAME],'readwrite'); tx.objectStore(STORE_NAME).clear(); tx.oncomplete = async ()=>{ await renderFoldersAndEntries(); }; }});
+        document.getElementById('exportBtn').addEventListener('click', async ()=>{ const data = await getAllEntries(); const dateStr = new Date().toISOString().split('T')[0]; const a=document.createElement('a'); a.href = URL.createObjectURL(new Blob([JSON.stringify(data,null,2)],{type:'application/json'})); a.download=`kontrolakvality_${dateStr}.json`; document.body.appendChild(a); a.click(); a.remove(); });
+        document.getElementById('importBtn').addEventListener('click', ()=> document.getElementById('importFile').click());
+        document.getElementById('importFile').addEventListener('change', async (ev)=>{ const f=ev.target.files[0]; if(!f) return; const txt = await f.text(); try{ const arr = JSON.parse(txt); for(const it of arr){ try{ await addEntry(it); }catch(e){} } await renderFoldersAndEntries(); alert('Import dokončen.'); }catch(err){ alert('Chyba importu: '+err.message); } });
+
+        // service worker registration + update handling (prompt user)
+        if('serviceWorker' in navigator){
+          try{
+            const reg = await navigator.serviceWorker.register('service-worker.js');
+
+            // If there's an already-waiting worker, prompt immediately
+            if(reg.waiting){ showUpdateBanner(reg); }
+
+            // When a new SW is found (installing) watch its state
+            reg.addEventListener('updatefound', ()=>{
+              const newWorker = reg.installing;
+              if(!newWorker) return;
+              newWorker.addEventListener('statechange', ()=>{
+                if(newWorker.state === 'installed'){
+                  // If there's a controller, it's an update. Prompt the user.
+                  if(navigator.serviceWorker.controller){ showUpdateBanner(reg); }
+                }
+              });
+            });
+
+            // If the page receives a message from SW indicating activation, you can act
+            navigator.serviceWorker.addEventListener('message', ev=>{
+              if(!ev.data) return;
+              if(ev.data.type === 'SW_ACTIVATED'){
+                console.log('SW activated:', ev.data.cacheName);
+              }
+            });
+
+            // When the new SW takes control, reload so clients use new assets
+            navigator.serviceWorker.addEventListener('controllerchange', ()=>{
+              if(window.__reloading) return; window.__reloading = true; window.location.reload();
+            });
+
+          }catch(err){ console.warn('SW registration failed', err); }
+        }
+      });
+      </script>
+    </body>
+    </html>
