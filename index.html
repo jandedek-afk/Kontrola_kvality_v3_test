@@ -4,7 +4,7 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, shrink-to-fit=no" />
   <title>Foto poznámky – Kontrola kvality (v3 TEST)</title>
-  <link rel="manifest" href="manifest.json?v=3.0.6-test">
+  <link rel="manifest" href="manifest.json?v=3.0.7-test">
   <link rel="apple-touch-icon" href="icon192.png" sizes="192x192">
   <link rel="apple-touch-icon" href="icon512.png" sizes="512x512">
   <link rel="icon" href="icon192.png" type="image/png" sizes="192x192">
@@ -180,7 +180,7 @@
 
       <footer>
         Aplikace funguje offline. Data jsou uložena lokálně v zařízení (IndexedDB).<br>
-        <span style="color:var(--muted);font-size:0.95em;">Verze aplikace: v3.0.6-test</span>
+        <span style="color:var(--muted);font-size:0.95em;">Verze aplikace: v3.0.7-test</span>
       </footer>
 
       <script>
@@ -248,8 +248,10 @@
         });
       }
 
+      // Čtení DB serializujeme do fronty – souběžné readonly transakce umí na Androidu zatuhnout.
+      let idbReadChain = Promise.resolve();
       function getAllEntries(){
-        return new Promise((res, rej)=>{
+        const run = ()=> new Promise((res, rej)=>{
           const tx = db.transaction([STORE_NAME],'readonly');
           const store = tx.objectStore(STORE_NAME);
           const r = store.getAll();
@@ -260,6 +262,9 @@
           };
           r.onerror = ()=> rej(r.error);
         });
+        const result = idbReadChain.then(run, run);
+        idbReadChain = result.catch(()=>{}); // řetěz pokračuje i po chybě, chybu ale nešíříme dál
+        return result;
       }
 
       function deleteEntryById(id){
@@ -424,14 +429,18 @@
       }
 
       // --- Auth ---
+      let heavyInitDone = false; // render + sync spustit jen jednou (jinak souběžné transakce IndexedDB zatuhnou na Androidu)
       async function showApp(session){
         document.getElementById('login-overlay').style.display = 'none';
         document.getElementById('user-bar').style.display = 'flex';
         document.getElementById('user-email').textContent = session.user.email || '';
+        if(heavyInitDone){ dbg('showApp: už inicializováno, přeskakuji'); return; }
+        heavyInitDone = true;
         await renderFoldersAndEntries();
         await syncNow();
       }
       function showLogin(){
+        heavyInitDone = false;
         document.getElementById('login-overlay').style.display = 'flex';
         document.getElementById('user-bar').style.display = 'none';
       }
