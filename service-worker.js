@@ -1,12 +1,16 @@
-const CACHE_NAME = 'foto-poznamky-cache-v3.0.1-test';
+const CACHE_NAME = 'foto-poznamky-cache-v3.0.2-test';
+const NETWORK_TIMEOUT = 2500; // ms – po této době při pomalé síti naskočí cache
 const urlsToCache = [
   './',
   './index.html',
-  './manifest.json?v=3.0.1-test',
+  './manifest.json?v=3.0.2-test',
   './icon192.png',
   './icon512.png',
   './icon2.png'
 ];
+// Cizí (cross-origin) domény, které smíme ukládat do cache kvůli offline běhu.
+// Supabase a mapové dlaždice zde NEJSOU – ty jdou vždy přímo na síť.
+const CACHEABLE_CDN = ['unpkg.com', 'cdn.jsdelivr.net'];
 
 self.addEventListener('install', event => {
   event.waitUntil(
@@ -33,17 +37,59 @@ self.addEventListener('activate', event => {
   })());
 });
 
+// "Nejdřív síť" s časovým limitem; když síť do limitu nestihne (nebo selže), použij cache.
+function networkFirst(request, cache) {
+  return new Promise(resolve => {
+    let settled = false;
+    const done = (res) => { if (!settled) { settled = true; resolve(res); } };
+
+    const timer = setTimeout(async () => {
+      const cached = await cache.match(request);
+      if (cached) done(cached); // pomalá síť → naskočí cache; síť případně doběhne a cache se aktualizuje
+    }, NETWORK_TIMEOUT);
+
+    fetch(request).then(async res => {
+      clearTimeout(timer);
+      try { await cache.put(request, res.clone()); } catch (e) { /* ignore */ }
+      done(res.clone());
+    }).catch(async () => {
+      clearTimeout(timer);
+      const cached = await cache.match(request);
+      done(cached || new Response('', { status: 504, statusText: 'Gateway Timeout' }));
+    });
+  });
+}
+
 self.addEventListener('fetch', event => {
-  // Stale-while-revalidate: respond with cache if available, and update cache in background
+  const req = event.request;
+  if (req.method !== 'GET') return; // POST apod. (Supabase zápisy) neřešíme
+
+  const url = new URL(req.url);
+  const sameOrigin = url.origin === self.location.origin;
+  const cacheableCDN = CACHEABLE_CDN.includes(url.hostname);
+
+  // Cizí domény mimo povolené CDN (Supabase, mapové dlaždice) → vždy přímo na síť, nic neukládáme
+  if (!sameOrigin && !cacheableCDN) return;
+
+  // Stránka / app shell → nejdřív síť (rychlé aktualizace), offline záloha z cache
+  const isShell = req.mode === 'navigate'
+    || url.pathname.endsWith('/')
+    || url.pathname.endsWith('index.html')
+    || url.pathname.endsWith('manifest.json');
+
   event.respondWith((async () => {
     const cache = await caches.open(CACHE_NAME);
-    const cached = await cache.match(event.request);
-    const networkFetch = fetch(event.request).then(async res => {
-      try { await cache.put(event.request, res.clone()); } catch (e) { /* ignore put errors */ }
+
+    if (sameOrigin && isShell) {
+      return networkFirst(req, cache);
+    }
+
+    // Ikony a knihovny z CDN → stale-while-revalidate (rychlé z cache, aktualizace na pozadí)
+    const cached = await cache.match(req);
+    const networkFetch = fetch(req).then(async res => {
+      try { await cache.put(req, res.clone()); } catch (e) { /* ignore */ }
       return res.clone();
     }).catch(() => null);
-
-    // Return cached if it exists, otherwise wait for network
     return cached || (await networkFetch) || new Response('', { status: 504, statusText: 'Gateway Timeout' });
   })());
 });
