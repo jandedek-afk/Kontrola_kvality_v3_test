@@ -4,7 +4,7 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, shrink-to-fit=no" />
   <title>Foto poznámky – Kontrola kvality (v3 TEST)</title>
-  <link rel="manifest" href="manifest.json?v=3.0.2-test">
+  <link rel="manifest" href="manifest.json?v=3.0.3-test">
   <link rel="apple-touch-icon" href="icon192.png" sizes="192x192">
   <link rel="apple-touch-icon" href="icon512.png" sizes="512x512">
   <link rel="icon" href="icon192.png" type="image/png" sizes="192x192">
@@ -178,7 +178,7 @@
 
       <footer>
         Aplikace funguje offline. Data jsou uložena lokálně v zařízení (IndexedDB).<br>
-        <span style="color:var(--muted);font-size:0.95em;">Verze aplikace: v3.0.2-test</span>
+        <span style="color:var(--muted);font-size:0.95em;">Verze aplikace: v3.0.3-test</span>
       </footer>
 
       <script>
@@ -186,7 +186,23 @@
       const SUPABASE_URL = 'https://wkqqjladzvelnvwcstok.supabase.co';
       const SUPABASE_KEY = 'sb_publishable_LpaZpXDEEA6Wg2StewdZ2Q_slO5TwI_';
       const PHOTO_BUCKET = 'photos';
-      const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+      const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY, {
+        auth: {
+          persistSession: true,
+          autoRefreshToken: true,
+          // Vypnutí zámku přes Web Locks API – ten ve více oknech / PWA umí zaseknout
+          // dotazy napořád (vše „visí" bez jediného síťového požadavku).
+          lock: async (_name, _acquireTimeout, fn) => await fn()
+        }
+      });
+
+      // Pojistka: každé síťové volání má časový limit, ať se nic nezasekne natrvalo.
+      function withTimeout(promise, ms, label){
+        return Promise.race([
+          Promise.resolve(promise),
+          new Promise((_, rej)=> setTimeout(()=> rej(new Error('Časový limit vypršel: ' + label)), ms))
+        ]);
+      }
 
       // Lightweight IndexedDB helpers
       const DB_NAME = 'fotoPoznamkyDB';
@@ -308,16 +324,16 @@
           const path = `${entry.id}.jpg`;
           if(entry.photo){
             const blob = dataURLtoBlob(entry.photo);
-            const { error: upErr } = await sb.storage.from(PHOTO_BUCKET).upload(path, blob, { contentType:'image/jpeg', upsert:true });
+            const { error: upErr } = await withTimeout(sb.storage.from(PHOTO_BUCKET).upload(path, blob, { contentType:'image/jpeg', upsert:true }), 20000, 'nahrávání fotky');
             if(upErr) throw upErr;
           }
-          const { data:{ user } } = await sb.auth.getUser();
+          const { data:{ user } } = await withTimeout(sb.auth.getUser(), 10000, 'ověření uživatele');
           const row = {
             id: entry.id, time: entry.time, time_text: entry.timeText, coords: entry.coords,
             long_note: entry.longNote, cross_note: entry.crossNote, note: entry.note,
             folder: entry.folder, photo_path: entry.photo ? path : null, owner: user ? user.id : null
           };
-          const { error } = await sb.from('entries').upsert(row);
+          const { error } = await withTimeout(sb.from('entries').upsert(row), 15000, 'ukládání záznamu');
           if(error) throw error;
           entry.synced = true;
           await updateEntry(entry);
@@ -336,7 +352,7 @@
 
       // Stáhne z cloudu záznamy, které lokálně ještě nejsou
       async function pullFromCloud(){
-        const { data: rows, error } = await sb.from('entries').select('*');
+        const { data: rows, error } = await withTimeout(sb.from('entries').select('*'), 15000, 'načítání záznamů');
         if(error) throw error;
         const local = await getAllEntries();
         const localIds = new Set(local.map(e=>e.id));
@@ -345,7 +361,7 @@
           if(localIds.has(r.id)) continue;
           let photo = '';
           if(r.photo_path){
-            const { data: blob, error: dlErr } = await sb.storage.from(PHOTO_BUCKET).download(r.photo_path);
+            const { data: blob, error: dlErr } = await withTimeout(sb.storage.from(PHOTO_BUCKET).download(r.photo_path), 20000, 'stahování fotky');
             if(!dlErr && blob) photo = await blobToDataURL(blob);
           }
           const entry = { id:r.id, time:r.time, timeText:r.time_text, coords:r.coords,
