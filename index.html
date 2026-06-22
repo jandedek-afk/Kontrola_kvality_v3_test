@@ -4,7 +4,7 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, shrink-to-fit=no" />
   <title>Foto poznámky – Kontrola kvality (v3 TEST)</title>
-  <link rel="manifest" href="manifest.json?v=3.0.3-test">
+  <link rel="manifest" href="manifest.json?v=3.0.4-test">
   <link rel="apple-touch-icon" href="icon192.png" sizes="192x192">
   <link rel="apple-touch-icon" href="icon512.png" sizes="512x512">
   <link rel="icon" href="icon192.png" type="image/png" sizes="192x192">
@@ -178,7 +178,7 @@
 
       <footer>
         Aplikace funguje offline. Data jsou uložena lokálně v zařízení (IndexedDB).<br>
-        <span style="color:var(--muted);font-size:0.95em;">Verze aplikace: v3.0.3-test</span>
+        <span style="color:var(--muted);font-size:0.95em;">Verze aplikace: v3.0.4-test</span>
       </footer>
 
       <script>
@@ -338,9 +338,10 @@
           entry.synced = true;
           await updateEntry(entry);
           return true;
-        }catch(err){ console.warn('pushEntry selhal:', err.message||err); return false; }
+        }catch(err){ lastSyncError = (err && err.message) ? err.message : String(err); console.warn('pushEntry selhal:', lastSyncError); return false; }
       }
 
+      let lastSyncError = '';
       // Pošle do cloudu všechny zatím nesynchronizované lokální záznamy
       async function pushUnsynced(){
         const local = await getAllEntries();
@@ -377,13 +378,19 @@
         if(syncing) return;
         if(!navigator.onLine){ setSyncStatus('● offline'); return; }
         syncing = true;
-        setSyncStatus('synchronizuji…');
+        lastSyncError = '';
         try{
+          setSyncStatus('synchronizuji: odesílám…');
           const pushed = await pushUnsynced();
+          setSyncStatus('synchronizuji: stahuji…');
           const pulled = await pullFromCloud();
           await renderFoldersAndEntries();
-          setSyncStatus(`✓ hotovo (↑${pushed.ok} ↓${pulled})`);
-        }catch(err){ setSyncStatus('✕ chyba synchronizace'); console.warn('sync:', err.message||err); }
+          if(pushed.ok < pushed.total){
+            setSyncStatus(`⚠ odesláno ${pushed.ok}/${pushed.total} (↓${pulled}) – ${lastSyncError || 'odeslání selhalo'}`);
+          } else {
+            setSyncStatus(`✓ hotovo (↑${pushed.ok} ↓${pulled})`);
+          }
+        }catch(err){ setSyncStatus('✕ ' + (err && err.message ? err.message : err)); console.warn('sync:', err && err.message ? err.message : err); }
         finally{ syncing = false; }
       }
 
