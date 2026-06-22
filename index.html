@@ -87,11 +87,6 @@
     #viewer-body .meta{font-size:1rem;color:var(--muted);margin-bottom:8px}
     #viewer-body .field{background:#f9f9f9;padding:12px;border-left:4px solid var(--brand);border-radius:6px;margin-top:10px}
     /* update banner */
-    .update-banner{position:fixed;left:12px;right:12px;bottom:12px;background:#fff;border-radius:10px;box-shadow:0 8px 24px rgba(0,0,0,0.18);padding:10px 12px;display:flex;align-items:center;gap:12px;z-index:10000}
-    .update-banner .msg{flex:1;color:#111}
-    .update-banner button{padding:8px 12px;border-radius:8px;border:none;cursor:pointer}
-    .update-banner .primary{background:var(--brand);color:#fff}
-    .update-banner .secondary{background:#f1f3f6;color:#333}
     @media (max-width:768px){body{padding:0.75rem}.thumb{height:80px}.entry-content{grid-template-columns:100px 1fr}}
     /* login */
     #login-overlay{position:fixed;inset:0;background:#f5f7fa;display:flex;align-items:center;justify-content:center;z-index:20000;padding:1rem}
@@ -210,13 +205,6 @@
             <button id="save-coords-btn" class="btn-small" style="margin-top: 8px;">Uložit souřadnice</button>
           </div>
         </div>
-      </div>
-
-      <!-- update banner (hidden until new SW available) -->
-      <div id="update-banner" class="update-banner" style="display:none">
-        <div class="msg">Nová verze aplikace je dostupná.</div>
-        <button id="update-now" class="primary">Aktualizovat</button>
-        <button id="update-later" class="secondary">Později</button>
       </div>
 
       <footer>
@@ -714,20 +702,6 @@
         document.getElementById('viewer-delete').onclick = async ()=>{ if(confirm('Opravdu smazat tento záznam?')){ await deleteEntryById(entry.id); closeViewer(); await renderFoldersAndEntries(); }};
       }
 
-      // Update-banner helpers
-      function showUpdateBanner(reg){
-        const banner = document.getElementById('update-banner'); banner.style.display = 'flex';
-        const now = document.getElementById('update-now'); const later = document.getElementById('update-later');
-        const onNow = async ()=>{
-          banner.style.display='none';
-          try{
-            if(reg.waiting){ reg.waiting.postMessage({type:'SKIP_WAITING'}); }
-          }catch(e){ console.warn('Failed to postMessage to SW', e); }
-        };
-        const onLater = ()=>{ banner.style.display='none'; };
-        now.onclick = onNow; later.onclick = onLater;
-      }
-
       // wire up form and registration
       document.addEventListener('DOMContentLoaded', async ()=>{
         await initDB();
@@ -901,39 +875,17 @@
         document.getElementById('importBtn').addEventListener('click', ()=> document.getElementById('importFile').click());
         document.getElementById('importFile').addEventListener('change', async (ev)=>{ const f=ev.target.files[0]; if(!f) return; const txt = await f.text(); try{ const arr = JSON.parse(txt); for(const it of arr){ try{ await addEntry(it); }catch(e){} } await renderFoldersAndEntries(); alert('Import dokončen.'); }catch(err){ alert('Chyba importu: '+err.message); } });
 
-        // service worker registration + update handling (prompt user)
+        // registrace service workeru (tiché aktualizace, bez promptu)
         if('serviceWorker' in navigator){
           try{
+            // Tichá aktualizace: nový SW se aktivuje sám (skipWaiting v service-worker.js).
+            // Banner ani vynucené obnovení nepoužíváme – obsah je vždy čerstvý díky „nejdřív síť" pro app shell.
             const reg = await navigator.serviceWorker.register('service-worker.js');
+            reg.update().catch(()=>{}); // při načtení zkontroluj, jestli není novější SW
 
-            // If there's an already-waiting worker, prompt immediately
-            if(reg.waiting){ showUpdateBanner(reg); }
-
-            // When a new SW is found (installing) watch its state
-            reg.addEventListener('updatefound', ()=>{
-              const newWorker = reg.installing;
-              if(!newWorker) return;
-              newWorker.addEventListener('statechange', ()=>{
-                if(newWorker.state === 'installed'){
-                  // If there's a controller, it's an update. Prompt the user.
-                  if(navigator.serviceWorker.controller){ showUpdateBanner(reg); }
-                }
-              });
-            });
-
-            // If the page receives a message from SW indicating activation, you can act
             navigator.serviceWorker.addEventListener('message', ev=>{
-              if(!ev.data) return;
-              if(ev.data.type === 'SW_ACTIVATED'){
-                console.log('SW activated:', ev.data.cacheName);
-              }
+              if(ev.data && ev.data.type === 'SW_ACTIVATED'){ console.log('SW activated:', ev.data.cacheName); }
             });
-
-            // When the new SW takes control, reload so clients use new assets
-            navigator.serviceWorker.addEventListener('controllerchange', ()=>{
-              if(window.__reloading) return; window.__reloading = true; window.location.reload();
-            });
-
           }catch(err){ console.warn('SW registration failed', err); }
         }
       });

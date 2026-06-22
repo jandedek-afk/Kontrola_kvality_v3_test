@@ -18,10 +18,9 @@ self.addEventListener('install', event => {
       const cache = await caches.open(CACHE_NAME);
       console.log('Opened cache');
       await cache.addAll(urlsToCache);
+      await self.skipWaiting(); // tichá aktualizace: nový SW aktivovat hned (bez čekání a bez banneru)
     })()
   );
-  // Do not force clients to immediately use the new SW; allow prompt via client
-  // The SW will wait in 'waiting' state until client requests skipWaiting.
 });
 
 self.addEventListener('activate', event => {
@@ -92,12 +91,4 @@ self.addEventListener('fetch', event => {
     }).catch(() => null);
     return cached || (await networkFetch) || new Response('', { status: 504, statusText: 'Gateway Timeout' });
   })());
-});
-
-// Listen for messages from clients (e.g., to skip waiting)
-self.addEventListener('message', event => {
-  if (!event.data) return;
-  if (event.data.type === 'SKIP_WAITING') {
-    self.skipWaiting();
-  }
 });
