@@ -1,9 +1,9 @@
-const CACHE_NAME = 'foto-poznamky-cache-v3.0.7-test';
+const CACHE_NAME = 'foto-poznamky-cache-v3.0.8-test';
 const NETWORK_TIMEOUT = 2500; // ms – po této době při pomalé síti naskočí cache
 const urlsToCache = [
   './',
   './index.html',
-  './manifest.json?v=3.0.7-test',
+  './manifest.json?v=3.0.8-test',
   './icon192.png',
   './icon512.png',
   './icon2.png'

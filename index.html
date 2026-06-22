@@ -4,7 +4,7 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, shrink-to-fit=no" />
   <title>Foto poznámky – Kontrola kvality (v3 TEST)</title>
-  <link rel="manifest" href="manifest.json?v=3.0.7-test">
+  <link rel="manifest" href="manifest.json?v=3.0.8-test">
   <link rel="apple-touch-icon" href="icon192.png" sizes="192x192">
   <link rel="apple-touch-icon" href="icon512.png" sizes="512x512">
   <link rel="icon" href="icon192.png" type="image/png" sizes="192x192">
@@ -114,8 +114,6 @@
         <span class="sync-state" id="sync-status"></span>
       </div>
 
-      <pre id="dbg" style="display:none;background:#111;color:#0f0;font-size:11px;line-height:1.35;padding:8px;border-radius:8px;max-height:200px;overflow:auto;white-space:pre-wrap;margin-bottom:1rem"></pre>
-
       <div class="header">
         <img src="icon2.png" alt="logo" class="logo" onerror="this.style.display='none'">
         <div class="header-text">
@@ -180,7 +178,7 @@
 
       <footer>
         Aplikace funguje offline. Data jsou uložena lokálně v zařízení (IndexedDB).<br>
-        <span style="color:var(--muted);font-size:0.95em;">Verze aplikace: v3.0.7-test</span>
+        <span style="color:var(--muted);font-size:0.95em;">Verze aplikace: v3.0.8-test</span>
       </footer>
 
       <script>
@@ -325,16 +323,6 @@
 
       function setSyncStatus(text){ const el=document.getElementById('sync-status'); if(el) el.textContent = text; }
 
-      // Diagnostický výpis přímo na obrazovku (kvůli ladění na mobilu bez F12)
-      function dbg(msg){
-        const el = document.getElementById('dbg');
-        if(!el) return;
-        el.style.display = 'block';
-        let t = '0.0';
-        try { t = (performance.now()/1000).toFixed(1); } catch(e){}
-        el.textContent += `[${t}s] ${msg}\n`;
-        el.scrollTop = el.scrollHeight;
-      }
       // Pomocník: časový limit i pro lokální (IndexedDB) operace, ať se nic nezasekne potichu
       function localTimeout(promise, ms, label){
         return Promise.race([
@@ -346,43 +334,34 @@
       // Nahraje jeden lokální záznam do cloudu (fotka do úložiště, řádek do tabulky)
       async function pushEntry(entry){
         try{
-          dbg('  getUser…');
           const { data:{ user } } = await withTimeout(sb.auth.getUser(), 10000, 'ověření uživatele');
-          dbg('  getUser OK');
           const row = {
             id: entry.id, time: entry.time, time_text: entry.timeText, coords: entry.coords,
             long_note: entry.longNote, cross_note: entry.crossNote, note: entry.note,
             folder: entry.folder, photo: entry.photo || null, photo_path: null, owner: user ? user.id : null
           };
-          dbg('  upsert… (foto '+(entry.photo?Math.round(entry.photo.length/1024)+'kB':'0')+')');
           const { error } = await withTimeout(sb.from('entries').upsert(row), 20000, 'ukládání záznamu');
           if(error) throw error;
-          dbg('  upsert OK');
           entry.synced = true;
           await updateEntry(entry);
           return true;
-        }catch(err){ lastSyncError = (err && err.message) ? err.message : String(err); dbg('  CHYBA: '+lastSyncError); console.warn('pushEntry selhal:', lastSyncError); return false; }
+        }catch(err){ lastSyncError = (err && err.message) ? err.message : String(err); console.warn('pushEntry selhal:', lastSyncError); return false; }
       }
 
       let lastSyncError = '';
       // Pošle do cloudu všechny zatím nesynchronizované lokální záznamy
       async function pushUnsynced(){
-        dbg('push: čtu lokální DB…');
         const local = await localTimeout(getAllEntries(), 8000, 'čtení lokální DB');
-        dbg('push: lokálně '+local.length+' záznamů');
         const pending = local.filter(e => !e.synced);
-        dbg('push: nesynchronizovano '+pending.length);
-        let ok = 0, i = 0;
-        for(const e of pending){ i++; dbg('push '+i+'/'+pending.length+' id='+e.id); if(await pushEntry(e)) ok++; }
+        let ok = 0;
+        for(const e of pending){ if(await pushEntry(e)) ok++; }
         return { total: pending.length, ok };
       }
 
       // Stáhne z cloudu záznamy, které lokálně ještě nejsou
       async function pullFromCloud(){
-        dbg('pull: select…');
         const { data: rows, error } = await withTimeout(sb.from('entries').select('*'), 20000, 'načítání záznamů');
         if(error) throw error;
-        dbg('pull: '+(rows ? rows.length : '?')+' řádků z cloudu');
         const local = await localTimeout(getAllEntries(), 8000, 'čtení lokální DB (pull)');
         const localIds = new Set(local.map(e=>e.id));
         let added = 0;
@@ -406,18 +385,15 @@
       // Obousměrná synchronizace
       let syncing = false;
       async function syncNow(){
-        if(syncing){ dbg('sync: už běží, klik ignorován'); return; }
-        if(!navigator.onLine){ setSyncStatus('● offline'); dbg('sync: offline'); return; }
+        if(syncing) return;
+        if(!navigator.onLine){ setSyncStatus('● offline'); return; }
         syncing = true;
         lastSyncError = '';
-        dbg('=== SYNC start (online) ===');
         try{
           setSyncStatus('synchronizuji: odesílám…');
           const pushed = await pushUnsynced();
-          dbg('push hotovo: ↑'+pushed.ok+'/'+pushed.total);
           setSyncStatus('synchronizuji: stahuji…');
           const pulled = await pullFromCloud();
-          dbg('pull hotovo: ↓'+pulled);
           await renderFoldersAndEntries();
           if(pushed.ok < pushed.total){
             setSyncStatus(`⚠ odesláno ${pushed.ok}/${pushed.total} (↓${pulled}) – ${lastSyncError || 'odeslání selhalo'}`);
@@ -434,7 +410,7 @@
         document.getElementById('login-overlay').style.display = 'none';
         document.getElementById('user-bar').style.display = 'flex';
         document.getElementById('user-email').textContent = session.user.email || '';
-        if(heavyInitDone){ dbg('showApp: už inicializováno, přeskakuji'); return; }
+        if(heavyInitDone) return;
         heavyInitDone = true;
         await renderFoldersAndEntries();
         await syncNow();
