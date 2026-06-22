@@ -31,11 +31,11 @@
     textarea{width:100%;min-height:64px;margin-top:6px;padding:10px;border-radius:8px;border:1px solid #e0e0e0;resize:vertical;font-family:inherit;font-size:0.95rem;transition:border-color 0.2s}
     textarea:focus{outline:none;border-color:var(--brand)}
     .form-section{font-weight:700;color:var(--brand);font-size:1rem;margin-top:1.25rem;padding-top:0.75rem;border-top:1px solid #eee;display:flex;align-items:center;gap:8px}
-    .measure-group{margin-top:1.25rem;padding:12px 14px 14px;border:1px solid #dbe7f7;border-radius:10px;background:#f4f8fe}
+    .measure-group{margin-top:1.25rem;padding:12px 14px 14px;border:1px solid #dbe7f7;border-radius:10px;background:#f4f8fe;position:relative}
     .measure-group .form-section{margin-top:0;padding-top:0;border-top:none;font-size:1.05rem}
     .info-btn{width:18px;height:18px;min-width:18px;padding:0;border-radius:50%;background:#dbe7f7;color:var(--brand);font-size:0.72rem;font-weight:700;font-style:italic;line-height:1;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;border:none}
     .info-btn:hover{background:#cdddf3;opacity:1}
-    .info-box{margin-top:8px;background:#fff;border:1px solid #dbe7f7;border-radius:8px;padding:8px 10px;font-size:0.82rem;font-weight:400;color:#444;line-height:1.45}
+    .info-box{position:absolute;left:14px;right:14px;top:40px;z-index:40;background:#fff;border:1px solid #dbe7f7;border-radius:8px;padding:8px 10px;font-size:0.82rem;font-weight:400;color:#444;line-height:1.45;box-shadow:0 6px 20px rgba(0,0,0,0.15)}
     .info-box[hidden]{display:none}
     .num-input{width:100%;margin-top:6px;padding:10px;border-radius:8px;border:1px solid #e0e0e0;font-family:inherit;font-size:0.95rem;background:#fff}
     .num-input:focus{outline:none;border-color:var(--brand)}
@@ -857,14 +857,22 @@
           });
         });
 
-        // Info k rovinatosti (tlačítko „i")
+        // Info k rovinatosti: na PC ukázat při najetí myší (hover), na mobilu po klepnutí na „i"
         const infoBtn = document.getElementById('rovinatost-info-btn');
         const infoBox = document.getElementById('rovinatost-info');
-        infoBtn.addEventListener('click', ()=>{
-          const open = infoBox.hidden;
-          infoBox.hidden = !open;
-          infoBtn.setAttribute('aria-expanded', open ? 'true' : 'false');
-        });
+        const showInfo = ()=>{ infoBox.hidden = false; infoBtn.setAttribute('aria-expanded','true'); };
+        const hideInfo = ()=>{ infoBox.hidden = true; infoBtn.setAttribute('aria-expanded','false'); };
+        if(window.matchMedia('(hover: hover)').matches){
+          // zařízení s myší → hover (a focus pro klávesnici)
+          infoBtn.addEventListener('mouseenter', showInfo);
+          infoBtn.addEventListener('mouseleave', hideInfo);
+          infoBtn.addEventListener('focus', showInfo);
+          infoBtn.addEventListener('blur', hideInfo);
+        } else {
+          // dotykové zařízení → klepnutí přepíná, klepnutí mimo zavře
+          infoBtn.addEventListener('click', ()=>{ infoBox.hidden ? showInfo() : hideInfo(); });
+          document.addEventListener('click', e=>{ if(!infoBox.hidden && e.target !== infoBtn && !infoBox.contains(e.target)) hideInfo(); });
+        }
 
         const form = document.getElementById('noteForm');
         form.addEventListener('submit', async (e)=>{
