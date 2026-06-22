@@ -87,9 +87,14 @@
     #login-msg.ok{color:#2e7d32}
     /* user bar */
     .user-bar{display:flex;align-items:center;gap:10px;flex-wrap:wrap;background:#fff;padding:8px 12px;border-radius:10px;box-shadow:0 2px 6px rgba(0,0,0,0.04);margin-bottom:1rem;font-size:0.88rem}
-    .user-bar .who{color:var(--muted)}
-    .user-bar .who b{color:#111}
-    .user-bar .sync-state{margin-left:auto;color:var(--muted)}
+    .user-bar .sync-state{color:var(--muted)}
+    .user-menu{position:relative;margin-left:auto}
+    .user-avatar{display:flex;align-items:center;justify-content:center;width:38px;height:38px;padding:0;border-radius:50%;background:#f1f3f6;color:var(--brand)}
+    .user-avatar:hover{background:#e8eaed;opacity:1}
+    .user-popover{position:absolute;top:calc(100% + 8px);right:0;z-index:30;background:#fff;border-radius:10px;box-shadow:0 6px 20px rgba(0,0,0,0.15);padding:12px;min-width:210px;display:flex;flex-direction:column;gap:8px}
+    .user-popover[hidden]{display:none}
+    .user-popover .who{color:var(--muted);font-size:0.8rem}
+    .user-popover .who-email b{color:#111;word-break:break-all}
     .badge-unsynced{display:inline-block;background:#fff3cd;color:#8a6d00;border-radius:6px;padding:1px 6px;font-size:0.75rem;margin-left:6px}
   </style>
 </head>
@@ -108,10 +113,18 @@
       </div>
 
       <div class="user-bar" id="user-bar" style="display:none">
-        <span class="who">Přihlášen: <b id="user-email"></b></span>
         <button id="sync-now" type="button" class="btn-small">Synchronizovat</button>
-        <button id="logout-btn" type="button" class="btn-small">Odhlásit</button>
         <span class="sync-state" id="sync-status"></span>
+        <div class="user-menu">
+          <button id="user-menu-btn" type="button" class="user-avatar" aria-haspopup="true" aria-expanded="false" title="Účet">
+            <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path fill="currentColor" d="M12 12c2.7 0 4.9-2.2 4.9-4.9S14.7 2.2 12 2.2 7.1 4.4 7.1 7.1 9.3 12 12 12Zm0 2.4c-3.3 0-9.8 1.6-9.8 4.9v2.4h19.6v-2.4c0-3.3-6.5-4.9-9.8-4.9Z"/></svg>
+          </button>
+          <div id="user-popover" class="user-popover" hidden>
+            <div class="who">Přihlášen jako</div>
+            <div class="who-email"><b id="user-email"></b></div>
+            <button id="logout-btn" type="button" class="btn-small danger">Odhlásit</button>
+          </div>
+        </div>
       </div>
 
       <div class="header">
@@ -700,7 +713,15 @@
           });
         });
 
-        document.getElementById('logout-btn').addEventListener('click', async ()=>{ await sb.auth.signOut(); });
+        // Menu účtu (panáček): otevření/zavření popoveru s e-mailem a odhlášením
+        const userMenuBtn = document.getElementById('user-menu-btn');
+        const userPopover = document.getElementById('user-popover');
+        const setUserMenu = (open)=>{ userPopover.hidden = !open; userMenuBtn.setAttribute('aria-expanded', open ? 'true' : 'false'); };
+        userMenuBtn.addEventListener('click', (e)=>{ e.stopPropagation(); setUserMenu(userPopover.hidden); });
+        document.addEventListener('click', (e)=>{ if(!userPopover.hidden && !e.target.closest('.user-menu')) setUserMenu(false); });
+        document.addEventListener('keydown', (e)=>{ if(e.key === 'Escape') setUserMenu(false); });
+
+        document.getElementById('logout-btn').addEventListener('click', async ()=>{ setUserMenu(false); await sb.auth.signOut(); });
         document.getElementById('sync-now').addEventListener('click', ()=> syncNow());
         window.addEventListener('online', ()=> syncNow());
         window.addEventListener('offline', ()=> setSyncStatus('● offline'));
