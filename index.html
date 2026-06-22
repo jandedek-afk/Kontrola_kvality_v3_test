@@ -693,6 +693,13 @@
           else { setLoginMsg('Účet vytvořen. Zkontrolujte e-mail pro potvrzení, pak se přihlaste.', 'ok'); }
         });
 
+        // Enter v poli e-mail/heslo spustí přihlášení
+        ['login-email','login-password'].forEach(id=>{
+          document.getElementById(id).addEventListener('keydown', e=>{
+            if(e.key === 'Enter'){ e.preventDefault(); document.getElementById('login-signin').click(); }
+          });
+        });
+
         document.getElementById('logout-btn').addEventListener('click', async ()=>{ await sb.auth.signOut(); });
         document.getElementById('sync-now').addEventListener('click', ()=> syncNow());
         window.addEventListener('online', ()=> syncNow());
