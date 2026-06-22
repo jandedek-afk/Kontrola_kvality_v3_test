@@ -35,6 +35,19 @@
     .measure-group .form-section{margin-top:0;padding-top:0;border-top:none;font-size:1.05rem}
     .num-input{width:100%;margin-top:6px;padding:10px;border-radius:8px;border:1px solid #e0e0e0;font-family:inherit;font-size:0.95rem;background:#fff}
     .num-input:focus{outline:none;border-color:var(--brand)}
+    .chip-row{display:flex;gap:8px;align-items:center;margin-top:6px}
+    .chip-row .num-input{margin-top:0;flex:1}
+    .add-val{white-space:nowrap;flex-shrink:0}
+    .chips{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
+    .chips:empty{margin-top:0}
+    .chip{display:inline-flex;align-items:center;gap:6px;background:#fff;border:1px solid #cdddf3;color:#111;border-radius:999px;padding:4px 6px 4px 12px;font-size:0.9rem}
+    .chip-x{background:#e7eef9;color:#33506f;border:none;border-radius:50%;width:20px;height:20px;padding:0;font-size:0.7rem;line-height:1;cursor:pointer;display:flex;align-items:center;justify-content:center}
+    .chip-x:hover{background:#d4e0f2;opacity:1}
+    .verdict-box{margin-top:12px}
+    .verdict-box:empty{margin-top:0}
+    .verdict{display:inline-block;padding:6px 14px;border-radius:999px;font-weight:700;font-size:0.95rem}
+    .verdict.ok{background:#e6f4ea;color:#1e7d34}
+    .verdict.bad{background:#fde8e8;color:#c62828}
     .form-actions{margin-top:1rem;display:flex;gap:8px;align-items:center;flex-wrap:wrap}
     button{background:var(--brand);color:#fff;border:none;padding:10px 16px;border-radius:8px;font-weight:600;cursor:pointer;font-size:0.95rem;transition:opacity 0.2s}
     button:hover{opacity:0.9}
@@ -146,9 +159,18 @@
         <div class="measure-group">
           <div class="form-section">Rovinatost</div>
           <label>Podélné měření latí</label>
-          <input id="longNote" class="num-input" type="text" inputmode="decimal" placeholder="Zadejte číslo...">
+          <div class="chip-row">
+            <input id="longNote" class="num-input" type="text" inputmode="decimal" placeholder="Zadejte číslo...">
+            <button type="button" class="btn-small add-val" data-target="long">+ Přidat</button>
+          </div>
+          <div id="long-chips" class="chips"></div>
           <label>Příčné měření latí</label>
-          <input id="crossNote" class="num-input" type="text" inputmode="decimal" placeholder="Zadejte číslo...">
+          <div class="chip-row">
+            <input id="crossNote" class="num-input" type="text" inputmode="decimal" placeholder="Zadejte číslo...">
+            <button type="button" class="btn-small add-val" data-target="cross">+ Přidat</button>
+          </div>
+          <div id="cross-chips" class="chips"></div>
+          <div id="rovinatost-verdict" class="verdict-box"></div>
         </div>
         <label>Poznámka</label>
         <textarea id="noteField" placeholder="Doplňující poznámka..."></textarea>
@@ -556,8 +578,10 @@
                 div.className = 'entry';
                 const coordsText = e.coords ? `${e.coords.lat}, ${e.coords.lon}` : 'bez polohy';
                 let notesHtml = '';
-                if (e.longNote) notesHtml += `<p><strong>📏 Podélné měření:</strong> ${escapeHtml(e.longNote)}</p>`;
-                if (e.crossNote) notesHtml += `<p><strong>↔️ Příčné měření:</strong> ${escapeHtml(e.crossNote)}</p>`;
+                if (e.longNote) notesHtml += `<p><strong>📏 Podélné měření latí:</strong> ${escapeHtml(e.longNote)}</p>`;
+                if (e.crossNote) notesHtml += `<p><strong>↔️ Příčné měření latí:</strong> ${escapeHtml(e.crossNote)}</p>`;
+                const rovBadge = rovinatostBadge(e.longNote, e.crossNote);
+                if (rovBadge) notesHtml += `<p><strong>📐 Rovinatost:</strong> ${rovBadge}</p>`;
                 if (e.note) notesHtml += `<p><strong>📝 Poznámka:</strong> ${escapeHtml(e.note)}</p>`;
                 const syncBadge = e.synced ? '' : '<span class="badge-unsynced">⏳ nesynch.</span>';
                 div.innerHTML = `<div class="entry-content"><img class="thumb" src="${e.photo}" alt="foto"><div class="meta"><div class="meta-header"><strong>${e.timeText}${syncBadge}</strong><span class="meta-info">${coordsText}</span></div>${notesHtml}<div class="actions"><button class="btn-small view-btn" data-id="${e.id}">Zobrazit</button><button class="btn-small danger delete-btn" data-id="${e.id}">Smazat</button><button class="btn-small download-btn" data-id="${e.id}">Stáhnout foto</button><button class="btn-small move-btn" data-id="${e.id}">Přesunout</button></div></div></div>`;
@@ -598,6 +622,24 @@
         }
     }
       
+      // --- Vyhodnocení rovinatosti ---
+      // Bere hodnoty z podélného i příčného měření dohromady.
+      // Vyhovující = aspoň 75 % hodnot je ≤ 10. Vrací HTML badge ('' když nejsou žádné hodnoty).
+      function parseRovinatostVals(str){
+        if(!str) return [];
+        return String(str).split(/[;\n]+/).map(s=>s.trim()).filter(s=>s!=='')
+          .map(s=>parseFloat(s.replace(',', '.'))).filter(v=>!isNaN(v));
+      }
+      function rovinatostBadge(longStr, crossStr){
+        const vals = parseRovinatostVals(longStr).concat(parseRovinatostVals(crossStr));
+        if(vals.length === 0) return '';
+        const ok = vals.filter(v=>v<=10).length;
+        const pass = (ok/vals.length) >= 0.75;
+        return pass
+          ? '<span class="verdict ok">✅ vyhovující</span>'
+          : '<span class="verdict bad">❌ nevyhovující</span>';
+      }
+
       async function render(){
         await renderFoldersAndEntries();
       }
@@ -605,12 +647,14 @@
       async function viewFull(id){
         const data = await getAllEntries(); const entry = data.find(d=>d.id===id); if(!entry){ alert('Záznam nenalezen'); return; }
         const viewer=document.getElementById('viewer'); const body=document.getElementById('viewer-body'); const coordsText = entry.coords?`${entry.coords.lat}, ${entry.coords.lon}`:'bez polohy';
+        const rovBadge = rovinatostBadge(entry.longNote, entry.crossNote);
         body.innerHTML = `
           <h1>Záznam z kontroly kvality</h1>
           <div class="meta"><strong>📅 Čas:</strong> ${entry.timeText} &nbsp; <strong>📍 Poloha:</strong> <span id="coords-display">${coordsText}</span></div>
           <img src="${entry.photo}" alt="Fotografie záznamu">
-          ${entry.longNote?`<div class="field"><strong>📏 Podélné měření</strong><div class="field-value">${escapeHtml(entry.longNote)}</div></div>`:''}
-          ${entry.crossNote?`<div class="field"><strong>↔️ Příčné měření</strong><div class="field-value">${escapeHtml(entry.crossNote)}</div></div>`:''}
+          ${entry.longNote?`<div class="field"><strong>📏 Podélné měření latí</strong><div class="field-value">${escapeHtml(entry.longNote)}</div></div>`:''}
+          ${entry.crossNote?`<div class="field"><strong>↔️ Příčné měření latí</strong><div class="field-value">${escapeHtml(entry.crossNote)}</div></div>`:''}
+          ${rovBadge?`<div class="field"><strong>📐 Rovinatost</strong><div class="field-value">${rovBadge}</div></div>`:''}
           ${entry.note?`<div class="field"><strong>📝 Poznámka</strong><div class="field-value">${escapeHtml(entry.note)}</div></div>`:''}
           <div style="margin-top:12px;display:flex;gap:8px;flex-wrap:wrap">
             <button id="viewer-download" class="btn-small">Stáhnout foto</button>
@@ -796,19 +840,56 @@
           mapOverlay.style.display = 'none';
           document.documentElement.style.overflow='';
         };
+        // --- Rovinatost: zadávání hodnot jako odznáčky (chips) ---
+        const measureState = { long: [], cross: [] };
+        const valInput = (t)=> document.getElementById(t==='long' ? 'longNote' : 'crossNote');
+        function updateVerdict(){
+          document.getElementById('rovinatost-verdict').innerHTML =
+            rovinatostBadge(measureState.long.join('; '), measureState.cross.join('; '));
+        }
+        function renderChips(t){
+          document.getElementById(t+'-chips').innerHTML = measureState[t].map((v,i)=>
+            `<span class="chip">${escapeHtml(v)}<button type="button" class="chip-x" data-target="${t}" data-i="${i}" aria-label="Smazat">✕</button></span>`
+          ).join('');
+          updateVerdict();
+        }
+        function addValue(t){
+          const input = valInput(t);
+          const raw = input.value.trim();
+          if(raw === '') return;
+          if(isNaN(parseFloat(raw.replace(',', '.')))) return; // nečíselný vstup ignorujeme
+          measureState[t].push(raw);
+          input.value = '';
+          input.focus();
+          renderChips(t);
+        }
+        document.querySelectorAll('.add-val').forEach(btn=>{
+          btn.addEventListener('click', ()=> addValue(btn.dataset.target));
+        });
+        ['long','cross'].forEach(t=>{
+          valInput(t).addEventListener('keydown', e=>{ if(e.key === 'Enter'){ e.preventDefault(); addValue(t); } });
+          document.getElementById(t+'-chips').addEventListener('click', e=>{
+            const x = e.target.closest('.chip-x'); if(!x) return;
+            measureState[x.dataset.target].splice(+x.dataset.i, 1);
+            renderChips(x.dataset.target);
+          });
+        });
+
         const form = document.getElementById('noteForm');
-        form.addEventListener('submit', async (e)=>{ 
-            e.preventDefault(); 
-            const fileInput=document.getElementById('photo'); 
-            if(!fileInput.files || fileInput.files.length===0){ alert('Vyberte fotografii.'); return; } 
-            const longNote=document.getElementById('longNote').value.trim(); 
-            const crossNote=document.getElementById('crossNote').value.trim(); 
+        form.addEventListener('submit', async (e)=>{
+            e.preventDefault();
+            const fileInput=document.getElementById('photo');
+            if(!fileInput.files || fileInput.files.length===0){ alert('Vyberte fotografii.'); return; }
+            addValue('long'); addValue('cross'); // dotáhni nezapsané číslo z políčka
+            const longNote=measureState.long.join('; ');
+            const crossNote=measureState.cross.join('; ');
             const note=document.getElementById('noteField').value.trim(); 
             const folderName = document.getElementById('folderName').value.trim();
             await saveEntry(fileInput.files[0], longNote, crossNote, note, folderName); 
             fileInput.value=''; 
-            document.getElementById('longNote').value=''; 
-            document.getElementById('crossNote').value=''; 
+            document.getElementById('longNote').value='';
+            document.getElementById('crossNote').value='';
+            measureState.long=[]; measureState.cross=[]; renderChips('long'); renderChips('cross');
             document.getElementById('noteField').value=''; 
             document.getElementById('folderName').value='';
             await renderFoldersAndEntries(); 
