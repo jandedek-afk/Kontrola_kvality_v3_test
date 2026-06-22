@@ -38,8 +38,12 @@
 - **Drobné změny pushuj rovnou** do `main` bez doptávání a bez zvedání verze (uživatel testuje naživo v appce). Verzi zvedej jen u řádného vydání. Před riskantním krokem (mazání dat, změna DB schématu/RLS, sahání na `../v2`) se vždy ptej.
 - **Build ani testy nejsou.**
 
-<!-- Vydání aktualizace uživatelům = zvednout verzi NA TŘECH místech zároveň:
-     CACHE_NAME v service-worker.js, ?v= v manifest odkazu v index.html, a text "Verze aplikace:" v patičce. -->
+<!-- Vydání aktualizace uživatelům = zvednout verzi NA ČTYŘECH místech zároveň:
+     1) CACHE_NAME v service-worker.js,
+     2) ?v= v precache URL ./manifest.json v service-worker.js (urlsToCache) – musí se shodovat s bodem 3,
+     3) ?v= v manifest odkazu v index.html,
+     4) text "Verze aplikace:" v patičce index.html.
+     Jsme stále v testovací verzi → verze nese sufix -test (např. v3.1.0-test). -->
 
 ## Důležitá rozhodnutí a omezení
 - **Nesahat na `../v2` (produkce) bez výslovného pokynu** — má vlastní repo a nasazuje se zvlášť.
