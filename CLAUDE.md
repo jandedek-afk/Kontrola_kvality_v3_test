@@ -3,6 +3,13 @@
 
 # CLAUDE.md
 
+## Jak navázat (start zde)
+- Otevři ve VS Code **přímo složku `v3_test`** (ne `v2`) — tím se tento CLAUDE.md načte automaticky.
+- Celá aplikace je v jednom souboru `index.html` (UI + JS + CSS pohromadě).
+- **Testovací adresa (živá):** https://jandedek-afk.github.io/Kontrola_kvality_v3_test/ — funguje na PC, tabletu i mobilu.
+- **Lokální náhled:** `python -m http.server 8000 --bind 127.0.0.1` ve složce → http://localhost:8000
+- Aktuální číslo verze je vidět v patičce aplikace.
+
 ## Projekt
 - **Kontrola kvality – Foto poznámky (v3)** — terénní PWA pro záznamy kontroly kvality: fotka + podélné/příčné měření + poznámka + GPS + datum, se sdílením mezi tabletem (provoz) a počítačem (zpracování).
 - **Tech stack:** čisté HTML/CSS/JS bez frameworku a bez build kroku; vše v jednom `index.html`. Knihovny z CDN: Leaflet 1.9.4 (mapa), `@supabase/supabase-js@2` (přihlášení + cloud). Lokální úložiště: IndexedDB. PWA (service worker + manifest).
