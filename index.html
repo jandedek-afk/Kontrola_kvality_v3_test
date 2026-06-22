@@ -30,9 +30,13 @@
     input[type=file]{width:100%;padding:8px;border:2px dashed #e0e0e0;border-radius:8px;cursor:pointer;font-size:0.9rem}
     textarea{width:100%;min-height:64px;margin-top:6px;padding:10px;border-radius:8px;border:1px solid #e0e0e0;resize:vertical;font-family:inherit;font-size:0.95rem;transition:border-color 0.2s}
     textarea:focus{outline:none;border-color:var(--brand)}
-    .form-section{font-weight:700;color:var(--brand);font-size:1rem;margin-top:1.25rem;padding-top:0.75rem;border-top:1px solid #eee}
+    .form-section{font-weight:700;color:var(--brand);font-size:1rem;margin-top:1.25rem;padding-top:0.75rem;border-top:1px solid #eee;display:flex;align-items:center;gap:8px}
     .measure-group{margin-top:1.25rem;padding:12px 14px 14px;border:1px solid #dbe7f7;border-radius:10px;background:#f4f8fe}
     .measure-group .form-section{margin-top:0;padding-top:0;border-top:none;font-size:1.05rem}
+    .info-btn{width:18px;height:18px;min-width:18px;padding:0;border-radius:50%;background:#dbe7f7;color:var(--brand);font-size:0.72rem;font-weight:700;font-style:italic;line-height:1;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;border:none}
+    .info-btn:hover{background:#cdddf3;opacity:1}
+    .info-box{margin-top:8px;background:#fff;border:1px solid #dbe7f7;border-radius:8px;padding:8px 10px;font-size:0.82rem;font-weight:400;color:#444;line-height:1.45}
+    .info-box[hidden]{display:none}
     .num-input{width:100%;margin-top:6px;padding:10px;border-radius:8px;border:1px solid #e0e0e0;font-family:inherit;font-size:0.95rem;background:#fff}
     .num-input:focus{outline:none;border-color:var(--brand)}
     .chip-row{display:flex;gap:8px;align-items:center;margin-top:6px}
@@ -152,14 +156,18 @@
         <label>Fotka (foto nebo galerie)</label>
         <input id="photo" type="file" accept="image/*" capture="camera">
         <div class="measure-group">
-          <div class="form-section">Rovinatost</div>
-          <label>Podélné měření latí</label>
+          <div class="form-section">
+            <span>Rovinatost [mm]</span>
+            <button type="button" class="info-btn" id="rovinatost-info-btn" aria-label="Co znamená rovinatost" aria-expanded="false">i</button>
+          </div>
+          <div id="rovinatost-info" class="info-box" hidden>Rovinatost se měří 2m latí. Vyhovující = aspoň 75 % naměřených hodnot je do 10 mm.</div>
+          <label>Podélné měření</label>
           <div class="chip-row">
             <input id="longNote" class="num-input" type="text" inputmode="decimal" placeholder="Zadejte číslo...">
             <button type="button" class="btn-small add-val" data-target="long">+ Přidat</button>
           </div>
           <div id="long-chips" class="chips"></div>
-          <label>Příčné měření latí</label>
+          <label>Příčné měření</label>
           <div class="chip-row">
             <input id="crossNote" class="num-input" type="text" inputmode="decimal" placeholder="Zadejte číslo...">
             <button type="button" class="btn-small add-val" data-target="cross">+ Přidat</button>
@@ -566,8 +574,8 @@
                 div.className = 'entry';
                 const coordsText = e.coords ? `${e.coords.lat}, ${e.coords.lon}` : 'bez polohy';
                 let notesHtml = '';
-                if (e.longNote) notesHtml += `<p><strong>📏 Podélné měření latí:</strong> ${escapeHtml(e.longNote)}</p>`;
-                if (e.crossNote) notesHtml += `<p><strong>↔️ Příčné měření latí:</strong> ${escapeHtml(e.crossNote)}</p>`;
+                if (e.longNote) notesHtml += `<p><strong>📏 Podélné měření:</strong> ${escapeHtml(e.longNote)}</p>`;
+                if (e.crossNote) notesHtml += `<p><strong>↔️ Příčné měření:</strong> ${escapeHtml(e.crossNote)}</p>`;
                 const rovBadge = rovinatostBadge(e.longNote, e.crossNote);
                 if (rovBadge) notesHtml += `<p><strong>📐 Rovinatost:</strong> ${rovBadge}</p>`;
                 if (e.note) notesHtml += `<p><strong>📝 Poznámka:</strong> ${escapeHtml(e.note)}</p>`;
@@ -640,8 +648,8 @@
           <h1>Záznam z kontroly kvality</h1>
           <div class="meta"><strong>📅 Čas:</strong> ${entry.timeText} &nbsp; <strong>📍 Poloha:</strong> <span id="coords-display">${coordsText}</span></div>
           <img src="${entry.photo}" alt="Fotografie záznamu">
-          ${entry.longNote?`<div class="field"><strong>📏 Podélné měření latí</strong><div class="field-value">${escapeHtml(entry.longNote)}</div></div>`:''}
-          ${entry.crossNote?`<div class="field"><strong>↔️ Příčné měření latí</strong><div class="field-value">${escapeHtml(entry.crossNote)}</div></div>`:''}
+          ${entry.longNote?`<div class="field"><strong>📏 Podélné měření</strong><div class="field-value">${escapeHtml(entry.longNote)}</div></div>`:''}
+          ${entry.crossNote?`<div class="field"><strong>↔️ Příčné měření</strong><div class="field-value">${escapeHtml(entry.crossNote)}</div></div>`:''}
           ${rovBadge?`<div class="field"><strong>📐 Rovinatost</strong><div class="field-value">${rovBadge}</div></div>`:''}
           ${entry.note?`<div class="field"><strong>📝 Poznámka</strong><div class="field-value">${escapeHtml(entry.note)}</div></div>`:''}
           <div style="margin-top:12px;display:flex;gap:8px;flex-wrap:wrap">
@@ -847,6 +855,15 @@
             measureState[x.dataset.target].splice(+x.dataset.i, 1);
             renderChips(x.dataset.target);
           });
+        });
+
+        // Info k rovinatosti (tlačítko „i")
+        const infoBtn = document.getElementById('rovinatost-info-btn');
+        const infoBox = document.getElementById('rovinatost-info');
+        infoBtn.addEventListener('click', ()=>{
+          const open = infoBox.hidden;
+          infoBox.hidden = !open;
+          infoBtn.setAttribute('aria-expanded', open ? 'true' : 'false');
         });
 
         const form = document.getElementById('noteForm');
