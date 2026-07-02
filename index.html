@@ -114,6 +114,7 @@
     .user-popover .who{color:var(--muted);font-size:0.8rem}
     .user-popover .who-email b{color:#111;word-break:break-all}
     .badge-unsynced{display:inline-block;background:#fff3cd;color:#8a6d00;border-radius:6px;padding:1px 6px;font-size:0.75rem;margin-left:6px}
+    #update-btn.has-update{background:#fff3cd;color:#8a6d00;font-weight:700}
     /* --- Rozvržení: postranní panel + hlavní obsah --- */
     body.app-mode{max-width:none;margin:0;padding:0;background:#eef1f6;overflow-x:hidden}
     .app-shell{display:flex;min-height:100vh}
@@ -268,6 +269,7 @@
           <div class="sidebar-foot">
             <button id="sync-now" type="button" class="btn-small">Synchronizovat</button>
             <span class="sync-state" id="sync-status"></span>
+            <button id="update-btn" type="button" class="btn-small">⟳ Aktualizovat aplikaci</button>
             <div class="who">Přihlášen:<br><b id="user-email"></b></div>
             <button id="logout-btn" type="button" class="btn-small danger">Odhlásit</button>
           </div>
@@ -409,7 +411,7 @@
 
       <footer>
         Aplikace funguje offline. Data jsou uložena lokálně v zařízení (IndexedDB).<br>
-        <span style="color:var(--muted);font-size:0.95em;">Verze aplikace: v3.2.0-test</span>
+        <span style="color:var(--muted);font-size:0.95em;">Verze aplikace: v3.2.0-test · Build 2026-07-02·1</span>
       </footer>
 
       <script>
@@ -1662,6 +1664,16 @@
 
         document.getElementById('logout-btn').addEventListener('click', async ()=>{ await sb.auth.signOut(); });
         document.getElementById('sync-now').addEventListener('click', ()=> syncNow());
+        document.getElementById('update-btn').addEventListener('click', async (e)=>{
+          const btn = e.currentTarget; btn.disabled = true; const orig = btn.textContent; btn.textContent = 'Aktualizuji…';
+          try{
+            if('serviceWorker' in navigator){
+              const reg = await navigator.serviceWorker.getRegistration();
+              if(reg){ await reg.update(); if(reg.waiting) reg.waiting.postMessage({ type:'SKIP_WAITING' }); }
+            }
+          }catch(err){ /* i tak zkusíme reload */ }
+          location.reload();
+        });
         window.addEventListener('online', ()=> syncNow());
         window.addEventListener('offline', ()=> setSyncStatus('● offline'));
 
@@ -1879,6 +1891,14 @@
             // Banner ani vynucené obnovení nepoužíváme – obsah je vždy čerstvý díky „nejdřív síť" pro app shell.
             const reg = await navigator.serviceWorker.register('service-worker.js');
             reg.update().catch(()=>{}); // při načtení zkontroluj, jestli není novější SW
+
+            // Zvýrazni tlačítko „Aktualizovat", když je stažená nová verze
+            const markUpdate = ()=>{ const b=document.getElementById('update-btn'); if(b){ b.classList.add('has-update'); b.textContent='⟳ Nová verze – aktualizovat'; } };
+            reg.addEventListener('updatefound', ()=>{
+              const nw = reg.installing; if(!nw) return;
+              nw.addEventListener('statechange', ()=>{ if(nw.state === 'installed' && navigator.serviceWorker.controller) markUpdate(); });
+            });
+            if(reg.waiting && navigator.serviceWorker.controller) markUpdate();
 
             navigator.serviceWorker.addEventListener('message', ev=>{
               if(ev.data && ev.data.type === 'SW_ACTIVATED'){ console.log('SW activated:', ev.data.cacheName); }
