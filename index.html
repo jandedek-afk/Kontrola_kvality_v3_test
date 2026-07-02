@@ -192,6 +192,14 @@
     .photo-preview img{width:100%;max-width:280px;height:auto;border-radius:8px;border:1px solid #e6eef9;margin-top:10px}
     .toggle-yn{display:flex;align-items:center;gap:10px;font-size:0.95rem;color:#333;cursor:pointer;font-weight:500}
     .toggle-yn input{width:22px;height:22px;accent-color:var(--brand);cursor:pointer}
+    /* --- Plovoucí okno s fotkou při kontrole --- */
+    #float-photo{position:fixed;right:16px;bottom:16px;z-index:9500;width:260px;background:#fff;border:1px solid #cdddf3;border-radius:10px;box-shadow:0 8px 28px rgba(0,0,0,0.28);overflow:hidden}
+    #float-photo.big{width:min(70vw,520px)}
+    #float-photo[hidden]{display:none}
+    #fp-head{display:flex;align-items:center;gap:6px;background:var(--brand);color:#fff;padding:6px 8px;font-size:0.82rem;font-weight:600;cursor:move;touch-action:none}
+    #fp-head button{background:rgba(255,255,255,0.2);color:#fff;border:none;width:24px;height:24px;border-radius:6px;font-size:0.8rem;cursor:pointer;padding:0}
+    #fp-head button:hover{background:rgba(255,255,255,0.35);opacity:1}
+    #fp-img{display:block;width:100%;height:auto;max-height:60vh;object-fit:contain;background:#f4f8fe}
     /* --- Výběr jmen (sbalený: chipy + tlačítko +) --- */
     .names-wrap{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
     .names-selected{display:flex;gap:6px;flex-wrap:wrap;align-items:center}
@@ -366,6 +374,17 @@
             <button id="save-coords-btn" class="btn-small" style="margin-top: 8px;">Uložit souřadnice</button>
           </div>
         </div>
+      </div>
+
+      <!-- Plovoucí okno s fotkou při kontrole (v Office při vizuálním posouzení) -->
+      <div id="float-photo" hidden>
+        <div id="fp-head">📷 Foto při kontrole
+          <span style="margin-left:auto;display:flex;gap:4px">
+            <button type="button" id="fp-size" title="Zvětšit / zmenšit">⤢</button>
+            <button type="button" id="fp-close" title="Zavřít">✕</button>
+          </span>
+        </div>
+        <img id="fp-img" src="" alt="foto při kontrole">
       </div>
 
       <footer>
@@ -629,6 +648,7 @@
         document.querySelectorAll('.nav-item').forEach(n=> n.classList.toggle('active', n.dataset.view === view));
         // zavřít mobilní menu
         document.getElementById('sidebar').classList.remove('open');
+        if(view !== 'office') hideFloatPhoto();
         if(view === 'mapa') renderMap();
         if(view === 'office') renderOffice();
         if(view === 'zaznamy') renderFoldersAndEntries();
@@ -811,10 +831,20 @@
       function escAttr(s){ return escapeHtml(s).replaceAll("'","&#39;"); }
       function todayISODate(){ const d=new Date(); const p=n=>String(n).padStart(2,'0'); return `${d.getFullYear()}-${p(d.getMonth()+1)}-${p(d.getDate())}`; }
 
+      // Plovoucí okno s fotkou „při kontrole" (pomůcka při vizuálním posouzení)
+      function showFloatPhoto(src){
+        const fp = document.getElementById('float-photo');
+        if(!src){ fp.hidden = true; return; }
+        document.getElementById('fp-img').src = src;
+        fp.hidden = false;
+      }
+      function hideFloatPhoto(){ const fp = document.getElementById('float-photo'); if(fp) fp.hidden = true; }
+
       // Vykreslí seznam záznamů (office) NEBO formulář pro vybraný záznam
       async function renderOffice(){
         const body = document.getElementById('office-body');
         if(officeCurrentId){ await renderOfficeForm(body); return; }
+        hideFloatPhoto();
         const entries = await getAllEntries();
         const rows = entries.map(e=>{
           const done = e.officeDone;
@@ -923,6 +953,7 @@
           </div>`;
 
         wireOfficeForm(body, entry);
+        showFloatPhoto(entry.photo); // plovoucí foto při kontrole pro vizuální posouzení
       }
 
       function wireOfficeForm(body, entry){
@@ -1021,13 +1052,14 @@
           const buf = await file.arrayBuffer();
           const pdf = await pdfjsLib.getDocument({ data: buf }).promise;
           const page = await pdf.getPage(1);
-          const lines = await pdfLines(page);
-          const info = parseRepairText(lines);
-          // předvyplň identifikaci
+          // Dvousloupcové rozložení: čti levý a pravý sloupec zvlášť, ať se hodnoty nepletou (např. Teplota k ID)
+          const [colL, colR] = await pdfColumns(page);
+          const info = mergeInfo(parseRepairText(colL), parseRepairText(colR));
+          // předvyplň identifikaci (chybějící ID → N/A)
           const idInp = body.querySelector('[data-key="id_cev"]');
           const oprInp = body.querySelector('[data-key="oprava"]');
-          if(idInp && info.id_cev) idInp.value = info.id_cev;
-          if(oprInp) oprInp.value = [info.spravce, info.komunikace, info.datum_ukonceni].filter(Boolean).join(', ');
+          if(idInp) idInp.value = info.id_cev || 'N/A';
+          if(oprInp){ const parts=[info.spravce, info.komunikace, info.datum_ukonceni].filter(Boolean); oprInp.value = parts.length ? parts.join(', ') : 'N/A'; }
           // fotky z PDF
           const imgs = await pdfImages(page);
           const imgWrap = body.querySelector('#pdf-images');
@@ -1054,19 +1086,34 @@
         if(prev && officePhotos.afterPhoto) prev.innerHTML = `<div class="of-photo"><img src="${officePhotos.afterPhoto}"><div class="cap">po opravě</div></div>`;
       }
 
-      // Poskládá text stránky do řádků podle y-souřadnice
-      async function pdfLines(page){
+      // Rozdělí text stránky na levý a pravý sloupec (podle X vůči středu stránky) a v každém poskládá řádky
+      async function pdfColumns(page){
+        const vp = page.getViewport({ scale: 1 });
+        const mid = vp.width / 2;
         const tc = await page.getTextContent();
-        const items = tc.items.filter(i=>i.str !== undefined);
+        const left = [], right = [];
+        tc.items.forEach(it=>{
+          if(it.str === undefined) return;
+          const x = it.transform[4], y = it.transform[5];
+          (x < mid ? left : right).push({ x, y, s: it.str });
+        });
+        return [colLines(left), colLines(right)];
+      }
+      function colLines(items){
         const rows = [];
         items.forEach(it=>{
-          const y = Math.round(it.transform[5]);
-          let row = rows.find(r=> Math.abs(r.y - y) <= 3);
-          if(!row){ row = { y, parts: [] }; rows.push(row); }
-          row.parts.push({ x: it.transform[4], s: it.str });
+          let row = rows.find(r=> Math.abs(r.y - it.y) <= 3);
+          if(!row){ row = { y: it.y, parts: [] }; rows.push(row); }
+          row.parts.push(it);
         });
         rows.sort((a,b)=> b.y - a.y);
         return rows.map(r=> r.parts.sort((a,b)=>a.x-b.x).map(p=>p.s).join('').trim()).filter(s=>s!=='');
+      }
+      // Sloučí výsledky z obou sloupců (bere první neprázdnou hodnotu)
+      function mergeInfo(a, b){
+        const out = {};
+        for(const k of new Set([...Object.keys(a), ...Object.keys(b)])){ out[k] = a[k] || b[k] || ''; }
+        return out;
       }
 
       // Z řádků vytáhne známé popisky (podporuje starší i novější šablonu)
@@ -1498,6 +1545,32 @@
         const sidebarEl = document.getElementById('sidebar');
         document.getElementById('menu-toggle').addEventListener('click', ()=> sidebarEl.classList.toggle('open'));
         document.getElementById('sidebar-backdrop').addEventListener('click', ()=> sidebarEl.classList.remove('open'));
+
+        // Plovoucí foto: přesouvání (drag), zavření, zvětšení
+        (function(){
+          const fp = document.getElementById('float-photo');
+          const head = document.getElementById('fp-head');
+          let drag = null;
+          head.addEventListener('pointerdown', e=>{
+            if(e.target.tagName === 'BUTTON') return;
+            const r = fp.getBoundingClientRect();
+            drag = { dx: e.clientX - r.left, dy: e.clientY - r.top };
+            fp.style.right = 'auto'; fp.style.bottom = 'auto';
+            fp.style.left = r.left + 'px'; fp.style.top = r.top + 'px';
+            try{ head.setPointerCapture(e.pointerId); }catch(_){}
+          });
+          head.addEventListener('pointermove', e=>{
+            if(!drag) return;
+            let x = Math.max(0, Math.min(window.innerWidth - 40, e.clientX - drag.dx));
+            let y = Math.max(0, Math.min(window.innerHeight - 40, e.clientY - drag.dy));
+            fp.style.left = x + 'px'; fp.style.top = y + 'px';
+          });
+          const end = e=>{ drag = null; try{ head.releasePointerCapture(e.pointerId); }catch(_){} };
+          head.addEventListener('pointerup', end);
+          head.addEventListener('pointercancel', end);
+          document.getElementById('fp-close').addEventListener('click', ()=> fp.hidden = true);
+          document.getElementById('fp-size').addEventListener('click', ()=> fp.classList.toggle('big'));
+        })();
 
         // Reakce na změnu přihlášení
         sb.auth.onAuthStateChange(async (_event, session)=>{
