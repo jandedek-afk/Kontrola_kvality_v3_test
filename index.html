@@ -184,7 +184,7 @@
     /* --- Kontrolní výjezd: sekce jako karty --- */
     #noteForm{background:transparent;box-shadow:none;padding:0}
     .vy-section{background:#fff;padding:1rem 1.1rem;border-radius:12px;box-shadow:0 2px 8px rgba(0,0,0,0.06);margin-bottom:1rem}
-    .vy-section.measure-group{background:#f4f8fe}
+    .vy-section.measure-group{background:#fff;border:none}
     .vy-title{font-weight:700;color:var(--brand);font-size:1.02rem;margin-bottom:0.6rem;display:flex;align-items:center;gap:8px}
     .name-chip{cursor:pointer;background:#fff;border:1px solid #cdddf3;color:#111;border-radius:999px;padding:7px 15px;font-size:0.9rem;font-weight:500}
     .name-chip:hover{background:#f4f8fe;opacity:1}
@@ -263,8 +263,12 @@
               </div>
 
               <div class="vy-section">
-                <div class="vy-title">📷 Fotka (foto nebo galerie)</div>
-                <div class="pdf-drop" id="photo-drop">📷 Klepni a vyber (foto nebo galerie)</div>
+                <div class="vy-title">📷 Fotka</div>
+                <div style="display:flex;gap:10px;flex-wrap:wrap">
+                  <button type="button" class="btn-small" id="photo-cam-btn" style="background:var(--brand);color:#fff">📷 Vyfotit</button>
+                  <button type="button" class="btn-small" id="photo-gal-btn">🖼️ Z galerie</button>
+                </div>
+                <input id="photoCam" type="file" accept="image/*" capture="environment" style="display:none">
                 <input id="photo" type="file" accept="image/*" style="display:none">
                 <div id="photo-preview" class="photo-preview"></div>
               </div>
@@ -277,13 +281,13 @@
                 <div id="rovinatost-info" class="info-box" hidden>Rovinatost se měří 2m latí. Vyhovující = aspoň 75 % naměřených hodnot je do 10 mm.</div>
                 <label>Podélné měření</label>
                 <div class="chip-row">
-                  <input id="longNote" class="num-input" type="text" inputmode="decimal" placeholder="Zadejte číslo...">
+                  <input id="longNote" class="num-input" type="text" inputmode="decimal" enterkeyhint="done" placeholder="Číslo + mezera / Enter">
                   <button type="button" class="btn-small add-val" data-target="long">+ Přidat</button>
                 </div>
                 <div id="long-chips" class="chips"></div>
                 <label>Příčné měření</label>
                 <div class="chip-row">
-                  <input id="crossNote" class="num-input" type="text" inputmode="decimal" placeholder="Zadejte číslo...">
+                  <input id="crossNote" class="num-input" type="text" inputmode="decimal" enterkeyhint="done" placeholder="Číslo + mezera / Enter">
                   <button type="button" class="btn-small add-val" data-target="cross">+ Přidat</button>
                 </div>
                 <div id="cross-chips" class="chips"></div>
@@ -1506,16 +1510,19 @@
         document.getElementById('person-add').addEventListener('click', personAddFn);
         personInput.addEventListener('keydown', e=>{ if(e.key==='Enter'){ e.preventDefault(); personAddFn(); } });
 
-        // Foto: klepni a vyber (foto nebo galerie) + náhled
-        const photoInput = document.getElementById('photo');
-        const photoDrop = document.getElementById('photo-drop');
-        photoDrop.addEventListener('click', ()=> photoInput.click());
-        photoInput.addEventListener('change', ()=>{
-          const f = photoInput.files && photoInput.files[0];
+        // Foto: Vyfotit (kamera) nebo Z galerie – oba vstupy plní stejný vybraný soubor
+        let selectedPhotoFile = null;
+        const photoCam = document.getElementById('photoCam');
+        const photoGal = document.getElementById('photo');
+        const showPhotoPreview = (f)=>{
+          selectedPhotoFile = f || null;
           const prev = document.getElementById('photo-preview');
-          if(f){ prev.innerHTML = `<img src="${URL.createObjectURL(f)}" alt="náhled">`; photoDrop.textContent = '📷 Fotka vybrána – klepni pro změnu'; }
-          else { prev.innerHTML=''; photoDrop.textContent = '📷 Klepni a vyber (foto nebo galerie)'; }
-        });
+          prev.innerHTML = f ? `<img src="${URL.createObjectURL(f)}" alt="náhled">` : '';
+        };
+        document.getElementById('photo-cam-btn').addEventListener('click', ()=> photoCam.click());
+        document.getElementById('photo-gal-btn').addEventListener('click', ()=> photoGal.click());
+        photoCam.addEventListener('change', ()=> showPhotoPreview(photoCam.files && photoCam.files[0]));
+        photoGal.addEventListener('change', ()=> showPhotoPreview(photoGal.files && photoGal.files[0]));
         // --- Rovinatost: zadávání hodnot jako odznáčky (chips) ---
         const measureState = { long: [], cross: [] };
         const valInput = (t)=> document.getElementById(t==='long' ? 'longNote' : 'crossNote');
@@ -1529,21 +1536,38 @@
           ).join('');
           updateVerdict();
         }
+        // Uloží jednu hodnotu (vrací true při úspěchu)
+        function commitRaw(t, raw){
+          raw = (raw||'').trim();
+          if(raw === '') return false;
+          if(isNaN(parseFloat(raw.replace(',', '.')))) return false; // nečíselný vstup ignorujeme
+          measureState[t].push(raw);
+          return true;
+        }
         function addValue(t){
           const input = valInput(t);
-          const raw = input.value.trim();
-          if(raw === '') return;
-          if(isNaN(parseFloat(raw.replace(',', '.')))) return; // nečíselný vstup ignorujeme
-          measureState[t].push(raw);
-          input.value = '';
-          input.focus();
-          renderChips(t);
+          if(commitRaw(t, input.value)){ input.value=''; input.focus(); renderChips(t); }
         }
         document.querySelectorAll('.add-val').forEach(btn=>{
           btn.addEventListener('click', ()=> addValue(btn.dataset.target));
         });
         ['long','cross'].forEach(t=>{
-          valInput(t).addEventListener('keydown', e=>{ if(e.key === 'Enter'){ e.preventDefault(); addValue(t); } });
+          const el = valInput(t);
+          // Enter (klávesnice / „hotovo") přidá a nechá pole aktivní pro další číslo
+          el.addEventListener('keydown', e=>{ if(e.key === 'Enter'){ e.preventDefault(); addValue(t); } });
+          // Rychlé přidávání: mezera / středník / nový řádek oddělí hodnoty (čárka zůstává jako desetinná)
+          el.addEventListener('input', ()=>{
+            if(/[\s;]/.test(el.value)){
+              const parts = el.value.split(/[\s;]+/);
+              const rem = parts.pop();
+              let changed = false;
+              parts.forEach(p=>{ if(commitRaw(t, p)) changed = true; });
+              el.value = rem;
+              if(changed) renderChips(t);
+            }
+          });
+          // Opuštění pole (přepnutí na druhé pole / mimo) dotáhne rozepsané číslo
+          el.addEventListener('blur', ()=>{ if(commitRaw(t, el.value)){ el.value=''; renderChips(t); } });
           document.getElementById(t+'-chips').addEventListener('click', e=>{
             const x = e.target.closest('.chip-x'); if(!x) return;
             measureState[x.dataset.target].splice(+x.dataset.i, 1);
@@ -1571,16 +1595,15 @@
         const form = document.getElementById('noteForm');
         form.addEventListener('submit', async (e)=>{
             e.preventDefault();
-            const fileInput=document.getElementById('photo');
-            if(!fileInput.files || fileInput.files.length===0){ alert('Vyberte fotografii.'); return; }
+            if(!selectedPhotoFile){ alert('Vyberte fotografii (Vyfotit nebo Z galerie).'); return; }
             addValue('long'); addValue('cross'); // dotáhni nezapsané číslo z políčka
             const longNote=measureState.long.join('; ');
             const crossNote=measureState.cross.join('; ');
             const note=document.getElementById('noteField').value.trim();
-            await saveEntry(fileInput.files[0], longNote, crossNote, note, ''); // složka = automaticky podle data
-            fileInput.value='';
+            await saveEntry(selectedPhotoFile, longNote, crossNote, note, ''); // složka = automaticky podle data
+            selectedPhotoFile = null;
+            photoCam.value=''; photoGal.value='';
             document.getElementById('photo-preview').innerHTML='';
-            photoDrop.textContent = '📷 Klepni a vyber (foto nebo galerie)';
             document.getElementById('longNote').value='';
             document.getElementById('crossNote').value='';
             measureState.long=[]; measureState.cross=[]; renderChips('long'); renderChips('cross');
