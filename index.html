@@ -1155,22 +1155,37 @@
       }
 
       async function saveEntry(photoFile, longNote, crossNote, note, folderName, vyjetaKolej){
-        const coords = await (async ()=>{
-          if(!('geolocation' in navigator)) return null;
-          // maximumAge: přijmi i polohu z posledních 60 s (rychlejší, hlavně u po sobě jdoucích záznamů)
-          return new Promise(res=> navigator.geolocation.getCurrentPosition(p=>res({lat:p.coords.latitude.toFixed(6), lon:p.coords.longitude.toFixed(6)}), ()=>res(null), {enableHighAccuracy:true, timeout:8000, maximumAge:60000}));
-        })();
         const photoData = await compressImage(photoFile);
         const now = Date.now();
         // Když uživatel nezadá složku, ulož pod dnešní datum (RRRR_MM_DD) místo „Bez složky"
         const folder = (folderName && folderName.trim()) ? folderName.trim() : dateFolderName(now);
         const inspectors = localStorage.getItem('kk_dnesni_kontroloval') || '';
-        const entry = { id:String(now), time:now, timeText:formatDate(now), coords, longNote, crossNote, note, photo:photoData, folder, inspectors, vyjetaKolej: !!vyjetaKolej, synced:false };
+        // Poloha (GPS) se NEČEKÁ – uloží se hned bez souřadnic a doplní se na pozadí (viz fetchCoordsBackground)
+        const entry = { id:String(now), time:now, timeText:formatDate(now), coords:null, longNote, crossNote, note, photo:photoData, folder, inspectors, vyjetaKolej: !!vyjetaKolej, synced:false };
         await addEntry(entry);
         // Pokus o okamžité nahrání do cloudu (offline-safe: když selže, zůstane k synchronizaci)
         if(navigator.onLine){ pushEntry(entry).then(ok=> setSyncStatus(ok ? '✓ uloženo do cloudu' : '⏳ uloženo lokálně, čeká na sync')); }
         else { setSyncStatus('● offline – uloženo lokálně'); }
+        // GPS na pozadí – po zaměření doplní souřadnice a přepíše záznam
+        fetchCoordsBackground(entry.id);
         return entry;
+      }
+
+      // Zaměří polohu na pozadí a doplní ji k záznamu (neblokuje ukládání)
+      function fetchCoordsBackground(id){
+        if(!('geolocation' in navigator)) return;
+        navigator.geolocation.getCurrentPosition(async p=>{
+          const coords = { lat:p.coords.latitude.toFixed(6), lon:p.coords.longitude.toFixed(6) };
+          try{
+            const all = await getAllEntries();
+            const e = all.find(x=>x.id===id);
+            if(!e) return;
+            e.coords = coords; e.synced = false;
+            await updateEntry(e);
+            if(navigator.onLine) pushEntry(e);
+            if(currentView === 'zaznamy') renderFoldersAndEntries();
+          }catch(err){ console.warn('Doplnění GPS selhalo:', err && err.message ? err.message : err); }
+        }, err=> console.warn('GPS nezískáno:', err && err.message ? err.message : err), {enableHighAccuracy:true, timeout:15000, maximumAge:60000});
       }
 
       function escapeHtml(s){ return (s||'').replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;').replaceAll('"','&quot;'); }
