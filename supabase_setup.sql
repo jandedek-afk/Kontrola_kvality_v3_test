@@ -14,9 +14,22 @@ create table if not exists public.entries (
   note        text,                       -- poznámka
   folder      text,                       -- složka
   photo_path  text,                       -- cesta k fotce v úložišti (např. "169...jpg")
+  vyjeta_kolej boolean,                    -- vyjetá kolej (ano/ne) z výjezdu
+  inspectors  text,                        -- kdo kontrolu prováděl (jména)
+  office      jsonb,                       -- office část = posouzení kvality (celý objekt)
+  after_photo text,                        -- foto po opravě (base64) z importu PDF
+  office_done boolean default false,       -- je office část vyplněná?
   owner       uuid references auth.users(id),
   created_at  timestamptz default now()
 );
+
+-- Migrace pro existující DB (bezpečné pustit opakovaně):
+alter table public.entries
+  add column if not exists vyjeta_kolej boolean,
+  add column if not exists inspectors   text,
+  add column if not exists office        jsonb,
+  add column if not exists after_photo   text,
+  add column if not exists office_done   boolean default false;
 
 -- 2) Zabezpečení tabulky (RLS) -------------------------------
 -- Sdílený týmový nástroj: každý PŘIHLÁŠENÝ uživatel vidí a spravuje vše.

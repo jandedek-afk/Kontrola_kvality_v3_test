@@ -574,10 +574,18 @@
           const row = {
             id: entry.id, time: entry.time, time_text: entry.timeText, coords: entry.coords,
             long_note: entry.longNote, cross_note: entry.crossNote, note: entry.note,
-            folder: entry.folder, photo: entry.photo || null, photo_path: null, owner: user ? user.id : null
+            folder: entry.folder, photo: entry.photo || null, photo_path: null, owner: user ? user.id : null,
+            // office část + novější pole (viz sloupce v supabase_setup.sql)
+            office: entry.office || null, after_photo: entry.afterPhoto || null,
+            vyjeta_kolej: !!entry.vyjetaKolej, inspectors: entry.inspectors || null, office_done: !!entry.officeDone
           };
-          const { error } = await withTimeout(sb.from('entries').upsert(row), 20000, 'ukládání záznamu');
-          if(error) throw error;
+          let { error } = await withTimeout(sb.from('entries').upsert(row), 20000, 'ukládání záznamu');
+          if(error){
+            // Stará DB bez nových sloupců? Zkus uložit aspoň základní pole (office se dosynchronizuje po migraci).
+            const { office, after_photo, vyjeta_kolej, inspectors, office_done, ...coreRow } = row;
+            const retry = await withTimeout(sb.from('entries').upsert(coreRow), 20000, 'ukládání záznamu (základ)');
+            if(retry.error) throw retry.error;
+          }
           entry.synced = true;
           await updateEntry(entry);
           return true;
@@ -594,30 +602,46 @@
         return { total: pending.length, ok };
       }
 
-      // Stáhne z cloudu záznamy, které lokálně ještě nejsou
+      // Sestaví lokální záznam z cloudového řádku (včetně office polí a fotky)
+      async function entryFromRow(r){
+        let photo = r.photo || '';
+        // Zpětná kompatibilita pro starší záznamy uložené ve Storage (neblokující)
+        if(!photo && r.photo_path){
+          try{
+            const { data: blob } = await withTimeout(sb.storage.from(PHOTO_BUCKET).download(r.photo_path), 15000, 'stahování fotky');
+            if(blob) photo = await blobToDataURL(blob);
+          }catch(e){ console.warn('Storage fallback selhal pro', r.id, e && e.message ? e.message : e); }
+        }
+        return { id:r.id, time:r.time, timeText:r.time_text, coords:r.coords,
+          longNote:r.long_note, crossNote:r.cross_note, note:r.note, photo, folder:r.folder,
+          office: r.office || undefined, afterPhoto: r.after_photo || undefined,
+          vyjetaKolej: !!r.vyjeta_kolej, inspectors: r.inspectors || '', officeDone: !!r.office_done,
+          synced:true };
+      }
+      // Porovná, jestli se cloudová verze liší od lokální (kvůli zbytečnému přepisu/renderu)
+      function entriesDiffer(a, b){
+        const sig = e => JSON.stringify([e.coords, e.longNote, e.crossNote, e.note, e.folder,
+          !!e.vyjetaKolej, e.inspectors||'', !!e.officeDone, e.office||null, e.afterPhoto?1:0, e.photo?1:0]);
+        return sig(a) !== sig(b);
+      }
+
+      // Stáhne z cloudu: nové záznamy přidá, u existujících (bez rozpracovaných lokálních změn) doplní změny (např. office z jiného zařízení)
       async function pullFromCloud(){
         const { data: rows, error } = await withTimeout(sb.from('entries').select('*'), 20000, 'načítání záznamů');
         if(error) throw error;
         const local = await localTimeout(getAllEntries(), 8000, 'čtení lokální DB (pull)');
-        const localIds = new Set(local.map(e=>e.id));
+        const localMap = new Map(local.map(e=>[e.id, e]));
         const deleted = new Set(getDeletedIds()); // smazané nestahovat zpět
-        let added = 0;
+        let added = 0, updated = 0;
         for(const r of rows){
-          if(localIds.has(r.id)) continue;
           if(deleted.has(r.id)){ deleteFromCloud(r.id).then(ok=>{ if(ok) unmarkDeleted(r.id); }); continue; } // smaž i v cloudu a přeskoč
-          let photo = r.photo || '';
-          // Zpětná kompatibilita pro starší záznamy uložené ve Storage (neblokující)
-          if(!photo && r.photo_path){
-            try{
-              const { data: blob } = await withTimeout(sb.storage.from(PHOTO_BUCKET).download(r.photo_path), 15000, 'stahování fotky');
-              if(blob) photo = await blobToDataURL(blob);
-            }catch(e){ console.warn('Storage fallback selhal pro', r.id, e && e.message ? e.message : e); }
-          }
-          const entry = { id:r.id, time:r.time, timeText:r.time_text, coords:r.coords,
-            longNote:r.long_note, crossNote:r.cross_note, note:r.note, photo, folder:r.folder, synced:true };
-          try{ await addEntry(entry); added++; }catch(e){ /* už existuje */ }
+          const existing = localMap.get(r.id);
+          if(existing && existing.synced === false) continue; // lokální nesynchronizovaná změna má přednost (dosynchronizuje se odesláním)
+          const entry = await entryFromRow(r);
+          if(!existing){ try{ await addEntry(entry); added++; }catch(e){ /* už existuje */ } }
+          else if(entriesDiffer(existing, entry)){ try{ await updateEntry(entry); updated++; }catch(e){} }
         }
-        return added;
+        return added + updated;
       }
 
       // Obousměrná synchronizace
@@ -1051,10 +1075,11 @@
         // automatický verdikt rovinatosti z terénního měření
         entry.office.rovinatost_verdikt = rovinatostVerdiktText(entry.longNote, entry.crossNote);
         entry.officeDone = true;
+        entry.synced = false; // označ jako nesynchronizované, ať se office nahraje do cloudu
         // zapamatuj dnešní kontrolóry pro příště
         if(o.kontrolu_provedl) localStorage.setItem('kk_dnesni_kontroloval', o.kontrolu_provedl);
-        // ponech synced=false, ať se změna případně dosynchronizuje (core pole)
         await updateEntry(entry);
+        if(navigator.onLine) pushEntry(entry); // hned zkus nahrát office do cloudu
         document.getElementById('office-msg').textContent = '✓ uloženo';
         setTimeout(()=> history.back(), 500);
       }
