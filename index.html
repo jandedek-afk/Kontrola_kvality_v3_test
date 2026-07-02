@@ -194,12 +194,16 @@
     .toggle-yn input{width:22px;height:22px;accent-color:var(--brand);cursor:pointer}
     /* --- Plovoucí okno s fotkou při kontrole --- */
     #float-photo{position:fixed;right:16px;bottom:16px;z-index:9500;width:260px;background:#fff;border:1px solid #cdddf3;border-radius:10px;box-shadow:0 8px 28px rgba(0,0,0,0.28);overflow:hidden}
-    #float-photo.big{width:min(70vw,520px)}
+    #float-photo.big{width:min(92vw,900px)}
     #float-photo[hidden]{display:none}
     #fp-head{display:flex;align-items:center;gap:6px;background:var(--brand);color:#fff;padding:6px 8px;font-size:0.82rem;font-weight:600;cursor:move;touch-action:none}
     #fp-head button{background:rgba(255,255,255,0.2);color:#fff;border:none;width:24px;height:24px;border-radius:6px;font-size:0.8rem;cursor:pointer;padding:0}
     #fp-head button:hover{background:rgba(255,255,255,0.35);opacity:1}
-    #fp-img{display:block;width:100%;height:auto;max-height:60vh;object-fit:contain;background:#f4f8fe}
+    #fp-img{display:block;width:100%;height:auto;max-height:78vh;object-fit:contain;background:#f4f8fe;cursor:zoom-in}
+    /* Fullscreen náhled fotky (na celou obrazovku) */
+    #photo-lightbox{position:fixed;inset:0;z-index:12000;background:rgba(0,0,0,0.9);display:flex;align-items:center;justify-content:center;cursor:zoom-out}
+    #photo-lightbox[hidden]{display:none}
+    #photo-lightbox img{max-width:98vw;max-height:98vh;object-fit:contain}
     /* --- Výběr jmen (sbalený: chipy + tlačítko +) --- */
     .names-wrap{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
     .names-selected{display:flex;gap:6px;flex-wrap:wrap;align-items:center}
@@ -386,6 +390,7 @@
         </div>
         <img id="fp-img" src="" alt="foto při kontrole">
       </div>
+      <div id="photo-lightbox" hidden><img id="pl-img" src="" alt="foto na celou obrazovku"></div>
 
       <footer>
         Aplikace funguje offline. Data jsou uložena lokálně v zařízení (IndexedDB).<br>
@@ -486,6 +491,21 @@
         });
       }
 
+      // --- Náhrobky (tombstones): které záznamy byly smazané, ať se z cloudu nevrací ---
+      function getDeletedIds(){ try{ return JSON.parse(localStorage.getItem('kk_deleted')||'[]'); }catch(e){ return []; } }
+      function markDeleted(id){ const s=getDeletedIds(); if(!s.includes(id)){ s.push(id); localStorage.setItem('kk_deleted', JSON.stringify(s)); } }
+      function unmarkDeleted(id){ localStorage.setItem('kk_deleted', JSON.stringify(getDeletedIds().filter(x=>x!==id))); }
+      async function deleteFromCloud(id){
+        try{ const { error } = await withTimeout(sb.from('entries').delete().eq('id', id), 15000, 'mazání z cloudu'); if(error) throw error; return true; }
+        catch(e){ console.warn('deleteFromCloud selhal:', e && e.message ? e.message : e); return false; }
+      }
+      // Kompletní smazání záznamu: lokálně + náhrobek + z cloudu (když se cloud povede, náhrobek zruším)
+      async function deleteEntryFully(id){
+        markDeleted(id);
+        await deleteEntryById(id);
+        if(navigator.onLine){ if(await deleteFromCloud(id)) unmarkDeleted(id); }
+      }
+
       function fileToBase64(file){
         return new Promise((res, rej)=>{
           const fr = new FileReader(); fr.onload = ()=> res(fr.result); fr.onerror = ()=> rej(fr.error); fr.readAsDataURL(file);
@@ -580,9 +600,11 @@
         if(error) throw error;
         const local = await localTimeout(getAllEntries(), 8000, 'čtení lokální DB (pull)');
         const localIds = new Set(local.map(e=>e.id));
+        const deleted = new Set(getDeletedIds()); // smazané nestahovat zpět
         let added = 0;
         for(const r of rows){
           if(localIds.has(r.id)) continue;
+          if(deleted.has(r.id)){ deleteFromCloud(r.id).then(ok=>{ if(ok) unmarkDeleted(r.id); }); continue; } // smaž i v cloudu a přeskoč
           let photo = r.photo || '';
           // Zpětná kompatibilita pro starší záznamy uložené ve Storage (neblokující)
           if(!photo && r.photo_path){
@@ -935,6 +957,7 @@
 
             <div class="office-section">Foto při kontrole (z výjezdu)</div>
             <div class="of-photo-row">${entry.photo?`<div class="of-photo"><img src="${entry.photo}"><div class="cap">${escapeHtml(entry.timeText||'')}</div></div>`:'<span class="hint">bez fotky</span>'}</div>
+            ${entry.photo?`<button type="button" class="btn-small" id="reopen-float" style="margin-top:8px">📌 Otevřít plovoucí okno s fotem</button>`:''}
 
             ${sectionsHtml}
 
@@ -1005,6 +1028,8 @@
         body.querySelector('#office-back').addEventListener('click', ()=> history.back());
         body.querySelector('#office-cancel').addEventListener('click', ()=> history.back());
         body.querySelector('#office-save').addEventListener('click', ()=> saveOffice(body, entry));
+        const reopenBtn = body.querySelector('#reopen-float');
+        if(reopenBtn) reopenBtn.addEventListener('click', ()=> showFloatPhoto(entry.photo));
       }
 
       // Sesbírá hodnoty z formuláře do objektu
@@ -1344,7 +1369,7 @@
                 const officeBadge = `<span class="status-pill ${e.officeDone?'done':'wait'}" style="margin-left:6px">${e.officeDone?'✓ office':'⏳ office'}</span>`;
                 div.innerHTML = `<div class="entry-content"><img class="thumb" src="${e.photo}" alt="foto"><div class="meta"><div class="meta-header"><strong>${e.timeText}${syncBadge}${officeBadge}</strong><span class="meta-info">${coordsText}</span></div>${notesHtml}<div class="actions"><button class="btn-small view-btn" data-id="${e.id}">Zobrazit</button><button class="btn-small danger delete-btn" data-id="${e.id}">Smazat</button><button class="btn-small download-btn" data-id="${e.id}">Stáhnout foto</button><button class="btn-small move-btn" data-id="${e.id}">Přesunout</button></div></div></div>`;
                 div.querySelector('.view-btn').addEventListener('click', () => viewFull(e.id));
-                div.querySelector('.delete-btn').addEventListener('click', async () => { if (confirm('Opravdu smazat tento záznam?')) { await deleteEntryById(e.id); await renderFoldersAndEntries(folderToShow); } });
+                div.querySelector('.delete-btn').addEventListener('click', async () => { if (confirm('Opravdu smazat tento záznam?')) { await deleteEntryFully(e.id); await renderFoldersAndEntries(folderToShow); } });
                 div.querySelector('.download-btn').addEventListener('click', () => downloadPhoto(e.photo, e.id));
                 div.querySelector('.move-btn').addEventListener('click', async () => {
                     const allEntries = await getAllEntries();
@@ -1473,7 +1498,7 @@
         document.getElementById('viewer-backdrop').onclick = ()=> history.back();
         document.getElementById('viewer-download').onclick = ()=> downloadPhoto(entry.photo, entry.id);
         document.getElementById('viewer-office').onclick = ()=>{ closeViewer(); openOfficeForm(entry.id); };
-        document.getElementById('viewer-delete').onclick = async ()=>{ if(confirm('Opravdu smazat tento záznam?')){ await deleteEntryById(entry.id); closeViewer(); await renderFoldersAndEntries(); }};
+        document.getElementById('viewer-delete').onclick = async ()=>{ if(confirm('Opravdu smazat tento záznam?')){ await deleteEntryFully(entry.id); closeViewer(); await renderFoldersAndEntries(); }};
 
         // registrace pro tlačítko Zpět (mobil/prohlížeč)
         viewerCloseFn = closeViewer;
@@ -1570,6 +1595,10 @@
           head.addEventListener('pointercancel', end);
           document.getElementById('fp-close').addEventListener('click', ()=> fp.hidden = true);
           document.getElementById('fp-size').addEventListener('click', ()=> fp.classList.toggle('big'));
+          // Klik na fotku → celá obrazovka (maximální detail)
+          const lb = document.getElementById('photo-lightbox');
+          document.getElementById('fp-img').addEventListener('click', ()=>{ document.getElementById('pl-img').src = document.getElementById('fp-img').src; lb.hidden = false; });
+          lb.addEventListener('click', ()=> lb.hidden = true);
         })();
 
         // Reakce na změnu přihlášení
@@ -1723,7 +1752,15 @@
             }
         });
 
-        document.getElementById('clearAll').addEventListener('click', async ()=>{ if(confirm('Opravdu vymazat všechna data?')){ const tx=db.transaction([STORE_NAME],'readwrite'); tx.objectStore(STORE_NAME).clear(); tx.oncomplete = async ()=>{ await renderFoldersAndEntries(); }; }});
+        document.getElementById('clearAll').addEventListener('click', async ()=>{
+          if(!confirm('Opravdu vymazat všechna data?')) return;
+          const all = await getAllEntries();
+          all.forEach(e=> markDeleted(e.id)); // náhrobky, ať se z cloudu nevrátí
+          const tx=db.transaction([STORE_NAME],'readwrite');
+          tx.objectStore(STORE_NAME).clear();
+          tx.oncomplete = async ()=>{ await renderFoldersAndEntries(); };
+          if(navigator.onLine){ all.forEach(e=> deleteFromCloud(e.id).then(ok=>{ if(ok) unmarkDeleted(e.id); })); }
+        });
         document.getElementById('exportBtn').addEventListener('click', async ()=>{ const data = await getAllEntries(); const dateStr = new Date().toISOString().split('T')[0]; const a=document.createElement('a'); a.href = URL.createObjectURL(new Blob([JSON.stringify(data,null,2)],{type:'application/json'})); a.download=`kontrolakvality_${dateStr}.json`; document.body.appendChild(a); a.click(); a.remove(); });
         document.getElementById('importBtn').addEventListener('click', ()=> document.getElementById('importFile').click());
         document.getElementById('importFile').addEventListener('change', async (ev)=>{ const f=ev.target.files[0]; if(!f) return; const txt = await f.text(); try{ const arr = JSON.parse(txt); for(const it of arr){ try{ await addEntry(it); }catch(e){} } await renderFoldersAndEntries(); alert('Import dokončen.'); }catch(err){ alert('Chyba importu: '+err.message); } });
