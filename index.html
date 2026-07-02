@@ -203,7 +203,11 @@
     .name-opt:hover{background:#eef5fe;opacity:1}
     .name-opt.sel{background:var(--brand);color:#fff;border-color:var(--brand)}
     /* --- Nastavení --- */
-    .settings-card{background:#fff;padding:1.1rem;border-radius:12px;box-shadow:0 2px 8px rgba(0,0,0,0.06);max-width:560px}
+    .settings-card{background:#fff;padding:0.5rem 1.1rem;border-radius:12px;box-shadow:0 2px 8px rgba(0,0,0,0.06);max-width:560px}
+    .settings-toggle{width:100%;display:flex;align-items:center;justify-content:space-between;background:transparent;color:var(--brand);font-weight:700;font-size:1.02rem;padding:0.8rem 0;border:none;cursor:pointer}
+    .settings-toggle .chev{transition:transform 0.2s}
+    .settings-toggle[aria-expanded="true"] .chev{transform:rotate(90deg)}
+    #persons-panel{padding-bottom:0.8rem}
     .person-row{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:8px 10px;border:1px solid #eef1f6;border-radius:8px;margin-top:8px}
     .person-row .del{background:#fde8e8;color:#c62828;border:none;border-radius:6px;padding:5px 10px;cursor:pointer;font-size:0.82rem;font-weight:600}
     .person-row .del:hover{background:#fbd5d5}
@@ -231,8 +235,8 @@
           </div>
           <nav class="sidebar-nav">
             <button type="button" class="nav-item active" data-view="vyjezd"><span class="ico">🚛</span> Kontrolní výjezd</button>
+            <button type="button" class="nav-item" data-view="office"><span class="ico">🏢</span> Office</button>
             <button type="button" class="nav-item" data-view="zaznamy"><span class="ico">📁</span> Záznamy</button>
-            <button type="button" class="nav-item" data-view="office"><span class="ico">🏢</span> Office – kontrola</button>
             <button type="button" class="nav-item" data-view="mapa"><span class="ico">🗺️</span> Mapa</button>
             <button type="button" class="nav-item" data-view="nastaveni" style="margin-top:auto"><span class="ico">⚙️</span> Nastavení</button>
           </nav>
@@ -329,12 +333,16 @@
           <section id="view-nastaveni" class="view">
             <h1 class="view-head">⚙️ Nastavení</h1>
             <div class="settings-card">
-              <div class="vy-title">👷 Kontrolující osoby</div>
-              <div class="view-sub" style="margin:0 0 0.5rem">Seznam osob, které se nabízí u „Kontrolu provádí".</div>
-              <div id="persons-list"></div>
-              <div class="chip-row" style="margin-top:12px">
-                <input id="person-input" class="num-input" type="text" placeholder="Jméno nové osoby…">
-                <button id="person-add" type="button" class="btn-small">+ Přidat osobu</button>
+              <button type="button" class="settings-toggle" id="persons-toggle" aria-expanded="false">
+                <span>👷 Kontrolující osoby</span><span class="chev">▸</span>
+              </button>
+              <div id="persons-panel" hidden>
+                <div class="view-sub" style="margin:0.6rem 0 0.5rem">Seznam osob, které se nabízí u „Kontrolu provádí".</div>
+                <div id="persons-list"></div>
+                <div class="chip-row" style="margin-top:12px">
+                  <input id="person-input" class="num-input" type="text" placeholder="Jméno nové osoby…">
+                  <button id="person-add" type="button" class="btn-small">+ Přidat osobu</button>
+                </div>
               </div>
             </div>
           </section>
@@ -605,8 +613,11 @@
         document.body.classList.remove('app-mode');
       }
 
-      // --- Přepínání karet (views) ---
-      function switchView(view){
+      // --- Přepínání karet (views) + historie pro tlačítko Zpět ---
+      let currentView = 'vyjezd';
+      let viewerCloseFn = null;   // funkce pro zavření detailu (nastaví se při otevření)
+      function applyView(view){
+        currentView = view;
         document.querySelectorAll('.view').forEach(v=> v.classList.toggle('active', v.id === 'view-'+view));
         document.querySelectorAll('.nav-item').forEach(n=> n.classList.toggle('active', n.dataset.view === view));
         // zavřít mobilní menu
@@ -616,6 +627,23 @@
         if(view === 'zaznamy') renderFoldersAndEntries();
         if(view === 'nastaveni') renderSettings();
       }
+      // Přepnutí karty z menu → přidá krok do historie (Zpět se vrátí sem)
+      function switchView(view){ applyView(view); history.pushState({v:view}, ''); }
+      // Otevření office formuláře pro konkrétní záznam → krok do historie
+      function openOfficeForm(id){
+        officeCurrentId = id; officePhotos = {};
+        applyView('office');
+        history.pushState({modal:'officeform'}, '');
+      }
+      // Zpět (mobilní/prohlížeč): nejdřív zavři modály, pak přepni kartu – nevyskakuj z appky
+      function handlePop(e){
+        const viewer = document.getElementById('viewer');
+        if(viewer && viewer.getAttribute('aria-hidden') === 'false'){ if(viewerCloseFn) viewerCloseFn(); return; }
+        if(officeCurrentId){ officeCurrentId = null; officePhotos = {}; renderOffice(); return; }
+        const v = (e.state && e.state.v) || 'vyjezd';
+        applyView(v);
+      }
+      window.addEventListener('popstate', handlePop);
 
       // --- Nastavení: správa kontrolujících osob ---
       function renderSettings(){
@@ -702,22 +730,27 @@
                  <input class="num-input name-input" type="text" placeholder="Nové jméno…">
                  <button type="button" class="btn-small name-new">Přidat</button>
                </div>
+               <button type="button" class="btn-small name-done" style="margin-top:8px">✓ Hotovo</button>
              </div>`;
           const sel = container.querySelector('.names-selected');
           sel.innerHTML = selected.length
             ? selected.map(n=>`<span class="chip name-selchip">${escapeHtml(n)}<button type="button" class="chip-x" data-n="${escAttr(n)}" aria-label="Odebrat">✕</button></span>`).join('')
             : '<span style="color:var(--muted);font-size:0.88rem">Nikdo nevybrán</span>';
-          sel.querySelectorAll('.chip-x').forEach(x=> x.addEventListener('click', ()=>{ selected=selected.filter(v=>v!==x.dataset.n); render(); fire(); }));
-          container.querySelector('.name-add-btn').addEventListener('click', ()=>{ open=!open; render(); });
+          sel.querySelectorAll('.chip-x').forEach(x=> x.addEventListener('click', (e)=>{ e.stopPropagation(); selected=selected.filter(v=>v!==x.dataset.n); render(); fire(); }));
+          container.querySelector('.name-add-btn').addEventListener('click', (e)=>{ e.stopPropagation(); open=!open; render(); });
           const list = container.querySelector('.names-pop-list');
           list.innerHTML = persons.map(n=>`<button type="button" class="name-opt ${selected.includes(n)?'sel':''}" data-n="${escAttr(n)}">${selected.includes(n)?'✓ ':''}${escapeHtml(n)}</button>`).join('') || '<span style="color:var(--muted);font-size:0.85rem">Zatím žádné osoby – přidej níže nebo v Nastavení.</span>';
-          list.querySelectorAll('.name-opt').forEach(o=> o.addEventListener('click', ()=>{ const n=o.dataset.n; selected = selected.includes(n)?selected.filter(x=>x!==n):[...selected,n]; render(); fire(); }));
+          list.querySelectorAll('.name-opt').forEach(o=> o.addEventListener('click', (e)=>{ e.stopPropagation(); const n=o.dataset.n; selected = selected.includes(n)?selected.filter(x=>x!==n):[...selected,n]; render(); fire(); }));
           const inp = container.querySelector('.name-input');
           const addNew = ()=>{ const v=inp.value.trim(); if(!v) return; addKnownPerson(v); if(!selected.includes(v)) selected.push(v); inp.value=''; render(); fire(); };
-          container.querySelector('.name-new').addEventListener('click', addNew);
-          inp.addEventListener('keydown', e=>{ if(e.key==='Enter'){ e.preventDefault(); addNew(); } });
+          container.querySelector('.name-new').addEventListener('click', (e)=>{ e.stopPropagation(); addNew(); });
+          inp.addEventListener('click', e=> e.stopPropagation());
+          inp.addEventListener('keydown', e=>{ if(e.key==='Enter'){ e.preventDefault(); e.stopPropagation(); addNew(); } });
+          container.querySelector('.name-done').addEventListener('click', (e)=>{ e.stopPropagation(); open=false; render(); });
         }
         render();
+        // Zavření výběru klepnutím mimo (ať to „nevisí")
+        document.addEventListener('click', (e)=>{ if(open && !container.contains(e.target)){ open=false; render(); } });
         return { get: ()=> selected.slice() };
       }
 
@@ -793,7 +826,7 @@
             <div class="office-list">${rows || '<div class="view-sub">Zatím žádné záznamy. Nejdřív pořiď záznam v kartě Kontrolní výjezd.</div>'}</div>
           </div>`;
         body.querySelectorAll('.office-row').forEach(r=>{
-          r.addEventListener('click', ()=>{ officeCurrentId = r.dataset.id; officePhotos = {}; renderOffice(); });
+          r.addEventListener('click', ()=>{ openOfficeForm(r.dataset.id); });
         });
       }
 
@@ -931,8 +964,8 @@
         pdfDrop.addEventListener('drop', e=>{ e.preventDefault(); pdfDrop.style.background=''; if(e.dataTransfer.files[0]) importRepairPdf(e.dataTransfer.files[0], body); });
         pdfInput.addEventListener('change', ()=>{ if(pdfInput.files[0]) importRepairPdf(pdfInput.files[0], body); });
 
-        body.querySelector('#office-back').addEventListener('click', ()=>{ officeCurrentId=null; officePhotos={}; renderOffice(); });
-        body.querySelector('#office-cancel').addEventListener('click', ()=>{ officeCurrentId=null; officePhotos={}; renderOffice(); });
+        body.querySelector('#office-back').addEventListener('click', ()=> history.back());
+        body.querySelector('#office-cancel').addEventListener('click', ()=> history.back());
         body.querySelector('#office-save').addEventListener('click', ()=> saveOffice(body, entry));
       }
 
@@ -960,7 +993,7 @@
         // ponech synced=false, ať se změna případně dosynchronizuje (core pole)
         await updateEntry(entry);
         document.getElementById('office-msg').textContent = '✓ uloženo';
-        setTimeout(()=>{ officeCurrentId=null; officePhotos={}; renderOffice(); }, 500);
+        setTimeout(()=> history.back(), 500);
       }
 
       // Textový verdikt rovinatosti (do office dat)
@@ -1364,11 +1397,15 @@
             }
         };
 
-        document.getElementById('viewer-close').onclick = closeViewer;
-        document.getElementById('viewer-backdrop').onclick = closeViewer;
+        document.getElementById('viewer-close').onclick = ()=> history.back();
+        document.getElementById('viewer-backdrop').onclick = ()=> history.back();
         document.getElementById('viewer-download').onclick = ()=> downloadPhoto(entry.photo, entry.id);
-        document.getElementById('viewer-office').onclick = ()=>{ closeViewer(); officeCurrentId = entry.id; officePhotos = {}; switchView('office'); };
+        document.getElementById('viewer-office').onclick = ()=>{ closeViewer(); openOfficeForm(entry.id); };
         document.getElementById('viewer-delete').onclick = async ()=>{ if(confirm('Opravdu smazat tento záznam?')){ await deleteEntryById(entry.id); closeViewer(); await renderFoldersAndEntries(); }};
+
+        // registrace pro tlačítko Zpět (mobil/prohlížeč)
+        viewerCloseFn = closeViewer;
+        history.pushState({modal:'viewer'}, '');
       }
 
       // Souhrn office části do detailu záznamu (jen vyplněná pole)
@@ -1389,6 +1426,7 @@
       // wire up form and registration
       document.addEventListener('DOMContentLoaded', async ()=>{
         await initDB();
+        history.replaceState({v:'vyjezd'}, ''); // základ historie pro tlačítko Zpět
 
         // --- Přihlášení ---
         const loginMsg = document.getElementById('login-msg');
@@ -1451,6 +1489,15 @@
         buildNamesPicker(document.getElementById('dnesni-jmena-picker'), savedNames, sel=>{
           localStorage.setItem('kk_dnesni_jmena', JSON.stringify(sel));
           localStorage.setItem('kk_dnesni_kontroloval', sel.join(', '));
+        });
+
+        // Nastavení: rozbalení pole „Kontrolující osoby"
+        const personsToggle = document.getElementById('persons-toggle');
+        const personsPanel = document.getElementById('persons-panel');
+        personsToggle.addEventListener('click', ()=>{
+          const open = personsPanel.hidden;
+          personsPanel.hidden = !open;
+          personsToggle.setAttribute('aria-expanded', open ? 'true' : 'false');
         });
 
         // Nastavení: přidání kontrolující osoby
