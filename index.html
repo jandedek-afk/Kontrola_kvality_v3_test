@@ -1191,9 +1191,10 @@
             if(labs.some(l=> norm(lines[i]) === l || norm(lines[i]).startsWith(l))){
               // najdi následující neprázdný řádek, který není další popisek
               for(let j=i+1;j<lines.length;j++){
-                if(lines[j].trim()==='' ) continue;
-                if(isLabel(lines[j])) break;
-                out[field] = lines[j].trim();
+                const cand = lines[j].trim();
+                if(cand === '') continue;
+                if(cand.endsWith(':') || isLabel(cand)) break; // hodnota chybí (další popisek) → nech prázdné (→ N/A)
+                out[field] = cand;
                 break;
               }
               break;
