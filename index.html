@@ -1157,7 +1157,8 @@
       async function saveEntry(photoFile, longNote, crossNote, note, folderName, vyjetaKolej){
         const coords = await (async ()=>{
           if(!('geolocation' in navigator)) return null;
-          return new Promise(res=> navigator.geolocation.getCurrentPosition(p=>res({lat:p.coords.latitude.toFixed(6), lon:p.coords.longitude.toFixed(6)}), ()=>res(null), {enableHighAccuracy:true, timeout:8000}));
+          // maximumAge: přijmi i polohu z posledních 60 s (rychlejší, hlavně u po sobě jdoucích záznamů)
+          return new Promise(res=> navigator.geolocation.getCurrentPosition(p=>res({lat:p.coords.latitude.toFixed(6), lon:p.coords.longitude.toFixed(6)}), ()=>res(null), {enableHighAccuracy:true, timeout:8000, maximumAge:60000}));
         })();
         const photoData = await compressImage(photoFile);
         const now = Date.now();
@@ -1597,26 +1598,41 @@
         }
 
         const form = document.getElementById('noteForm');
+        const saveBtn = document.getElementById('saveBtn');
+        let saving = false; // pojistka proti dvojímu uložení (dvojklik)
         form.addEventListener('submit', async (e)=>{
             e.preventDefault();
+            if(saving) return;                 // už se ukládá → ignoruj další odeslání
             if(!selectedPhotoFile){ alert('Vyberte fotografii (Vyfotit nebo Z galerie).'); return; }
-            addValue('long'); addValue('cross'); // dotáhni nezapsané číslo z políčka
-            const longNote=measureState.long.join('; ');
-            const crossNote=measureState.cross.join('; ');
-            const note=document.getElementById('noteField').value.trim();
-            const vyjetaKolej=document.getElementById('vyjetaKolej').checked;
-            await saveEntry(selectedPhotoFile, longNote, crossNote, note, '', vyjetaKolej); // složka = automaticky podle data
-            selectedPhotoFile = null;
-            photoInput.value='';
-            photoBtn.textContent = '📷 Klepni a vyfoť';
-            document.getElementById('vyjetaKolej').checked=false;
-            document.getElementById('photo-preview').innerHTML='';
-            document.getElementById('longNote').value='';
-            document.getElementById('crossNote').value='';
-            measureState.long=[]; measureState.cross=[]; renderChips('long'); renderChips('cross');
-            document.getElementById('noteField').value='';
-            await renderFoldersAndEntries();
-            alert('Záznam uložen.');
+            saving = true;
+            saveBtn.disabled = true;
+            const saveTxt = saveBtn.textContent;
+            saveBtn.textContent = 'Ukládám…';
+            try{
+              addValue('long'); addValue('cross'); // dotáhni nezapsané číslo z políčka
+              const longNote=measureState.long.join('; ');
+              const crossNote=measureState.cross.join('; ');
+              const note=document.getElementById('noteField').value.trim();
+              const vyjetaKolej=document.getElementById('vyjetaKolej').checked;
+              await saveEntry(selectedPhotoFile, longNote, crossNote, note, '', vyjetaKolej); // složka = automaticky podle data
+              selectedPhotoFile = null;
+              photoInput.value='';
+              photoBtn.textContent = '📷 Klepni a vyfoť';
+              document.getElementById('vyjetaKolej').checked=false;
+              document.getElementById('photo-preview').innerHTML='';
+              document.getElementById('longNote').value='';
+              document.getElementById('crossNote').value='';
+              measureState.long=[]; measureState.cross=[]; renderChips('long'); renderChips('cross');
+              document.getElementById('noteField').value='';
+              await renderFoldersAndEntries();
+              alert('Záznam uložen.');
+            }catch(err){
+              alert('Chyba při ukládání: ' + (err && err.message ? err.message : err));
+            }finally{
+              saving = false;
+              saveBtn.disabled = false;
+              saveBtn.textContent = saveTxt;
+            }
         });
 
         document.getElementById('clearAll').addEventListener('click', async ()=>{ if(confirm('Opravdu vymazat všechna data?')){ const tx=db.transaction([STORE_NAME],'readwrite'); tx.objectStore(STORE_NAME).clear(); tx.oncomplete = async ()=>{ await renderFoldersAndEntries(); }; }});
