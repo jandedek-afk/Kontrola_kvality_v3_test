@@ -4,7 +4,7 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, shrink-to-fit=no" />
   <title>Foto poznámky – Kontrola kvality (v3 TEST)</title>
-  <link rel="manifest" href="manifest.json?v=3.1.0-test">
+  <link rel="manifest" href="manifest.json?v=3.2.0-test">
   <link rel="apple-touch-icon" href="icon192.png" sizes="192x192">
   <link rel="apple-touch-icon" href="icon512.png" sizes="512x512">
   <link rel="icon" href="icon192.png" type="image/png" sizes="192x192">
@@ -16,6 +16,7 @@
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
   <style>
     :root{--brand:#1976d2;--muted:#666;--danger:#ff5252}
     *{box-sizing:border-box}
@@ -113,6 +114,73 @@
     .user-popover .who{color:var(--muted);font-size:0.8rem}
     .user-popover .who-email b{color:#111;word-break:break-all}
     .badge-unsynced{display:inline-block;background:#fff3cd;color:#8a6d00;border-radius:6px;padding:1px 6px;font-size:0.75rem;margin-left:6px}
+    /* --- Rozvržení: postranní panel + hlavní obsah --- */
+    body.app-mode{max-width:none;margin:0;padding:0;background:#eef1f6}
+    .app-shell{display:flex;min-height:100vh}
+    .sidebar{position:fixed;top:0;left:0;bottom:0;width:230px;background:#fff;border-right:1px solid #e3e8ef;display:flex;flex-direction:column;z-index:1000;transition:transform 0.25s}
+    .sidebar-brand{display:flex;align-items:center;gap:10px;padding:16px 16px 12px;border-bottom:1px solid #eef1f6}
+    .sidebar-brand img{width:38px;height:38px;object-fit:contain;border-radius:8px}
+    .sidebar-brand .name{font-weight:700;color:var(--brand);font-size:1rem;line-height:1.2}
+    .sidebar-nav{flex:1;padding:10px 8px;display:flex;flex-direction:column;gap:4px;overflow-y:auto}
+    .nav-item{display:flex;align-items:center;gap:10px;width:100%;text-align:left;background:transparent;color:#33414f;font-weight:600;padding:11px 12px;border-radius:8px;font-size:0.92rem}
+    .nav-item:hover{background:#f1f5fb;opacity:1}
+    .nav-item.active{background:#e7f0fd;color:var(--brand)}
+    .nav-item .ico{font-size:1.05rem;line-height:1}
+    .sidebar-foot{border-top:1px solid #eef1f6;padding:12px;display:flex;flex-direction:column;gap:8px;font-size:0.85rem}
+    .sidebar-foot .who{color:var(--muted);font-size:0.78rem}
+    .sidebar-foot .who b{color:#111;word-break:break-all;font-size:0.82rem}
+    .sidebar-foot .sync-state{color:var(--muted);font-size:0.8rem;min-height:1em}
+    .sidebar-backdrop{display:none;position:fixed;inset:0;background:rgba(0,0,0,0.4);z-index:900}
+    .main{flex:1;margin-left:230px;padding:1.25rem 1.5rem 3rem;max-width:1200px}
+    .menu-toggle{display:none;background:var(--brand);color:#fff;border:none;width:42px;height:42px;border-radius:8px;font-size:20px;margin-bottom:12px}
+    .view{display:none}
+    .view.active{display:block}
+    .view-head{margin:0 0 1rem;font-size:1.3rem;color:var(--brand)}
+    .view-sub{color:var(--muted);font-size:0.9rem;margin:-0.5rem 0 1.25rem}
+    @media (max-width:900px){
+      .sidebar{transform:translateX(-100%);box-shadow:0 0 30px rgba(0,0,0,0.2)}
+      .sidebar.open{transform:translateX(0)}
+      .sidebar.open ~ .sidebar-backdrop{display:block}
+      .main{margin-left:0;padding:0.9rem 0.9rem 3rem}
+      .menu-toggle{display:inline-flex;align-items:center;justify-content:center}
+    }
+    /* --- Office formulář --- */
+    .office-picker{background:#fff;padding:1rem;border-radius:12px;box-shadow:0 2px 8px rgba(0,0,0,0.06);margin-bottom:1rem}
+    .office-list{display:grid;gap:8px;margin-top:10px}
+    .office-row{display:flex;align-items:center;gap:12px;padding:8px 10px;border:1px solid #e6eef9;border-radius:10px;cursor:pointer;background:#fff}
+    .office-row:hover{background:#f4f8fe}
+    .office-row.sel{border-color:var(--brand);background:#eef5fe}
+    .office-row img{width:52px;height:52px;object-fit:cover;border-radius:6px;flex-shrink:0}
+    .office-row .r-main{flex:1;min-width:0}
+    .office-row .r-main .t{font-weight:600;font-size:0.9rem}
+    .office-row .r-main .s{color:var(--muted);font-size:0.8rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    .status-pill{font-size:0.72rem;font-weight:700;border-radius:999px;padding:2px 9px;white-space:nowrap}
+    .status-pill.wait{background:#fff3cd;color:#8a6d00}
+    .status-pill.done{background:#e6f4ea;color:#1e7d34}
+    .office-form{background:#fff;padding:1.25rem;border-radius:12px;box-shadow:0 2px 8px rgba(0,0,0,0.06)}
+    .office-section{font-weight:700;color:var(--brand);font-size:1.02rem;margin:1.5rem 0 0.25rem;padding-top:0.9rem;border-top:1px solid #eef1f6}
+    .office-section:first-of-type{margin-top:0;padding-top:0;border-top:none}
+    .of-field{margin-top:0.9rem}
+    .of-field > label{font-weight:600;display:block;margin-bottom:5px;font-size:0.92rem;color:#33414f}
+    .of-field .hint{font-weight:400;color:var(--muted);font-size:0.8rem;display:block;margin-top:2px}
+    .of-field input[type=text],.of-field input[type=number],.of-field input[type=date],.of-field textarea,.of-field select{width:100%;padding:9px 10px;border:1px solid #e0e0e0;border-radius:8px;font-family:inherit;font-size:0.93rem;background:#fff}
+    .of-field textarea{min-height:56px;resize:vertical}
+    .radio-set{display:flex;flex-direction:column;gap:6px;margin-top:4px}
+    .radio-set label{display:flex;align-items:center;gap:8px;font-weight:400;font-size:0.9rem;padding:7px 10px;border:1px solid #e6eef9;border-radius:8px;cursor:pointer;margin:0}
+    .radio-set label:hover{background:#f7fafe}
+    .radio-set input{margin:0}
+    .radio-set label.checked{border-color:var(--brand);background:#eef5fe}
+    .of-photo-row{display:flex;gap:12px;flex-wrap:wrap;margin-top:8px}
+    .of-photo{width:150px}
+    .of-photo img{width:100%;height:110px;object-fit:cover;border-radius:8px;border:1px solid #e6eef9;background:#f4f8fe}
+    .of-photo .cap{font-size:0.78rem;color:var(--muted);margin-top:4px;text-align:center}
+    .pdf-drop{border:2px dashed #cdddf3;border-radius:10px;padding:14px;text-align:center;background:#f7fafe;cursor:pointer;font-size:0.9rem;color:#33506f}
+    .pdf-drop:hover{background:#eef5fe}
+    .pick-thumb{width:96px;cursor:pointer;border:2px solid transparent;border-radius:8px;padding:2px}
+    .pick-thumb.sel{border-color:var(--brand)}
+    .pick-thumb img{width:100%;height:70px;object-fit:cover;border-radius:6px}
+    .conditional[hidden]{display:none}
+    .office-actions{margin-top:1.5rem;display:flex;gap:10px;flex-wrap:wrap;align-items:center;padding-top:1rem;border-top:1px solid #eef1f6}
   </style>
 </head>
 <body>
@@ -129,78 +197,99 @@
         </div>
       </div>
 
-      <div class="user-bar" id="user-bar" style="display:none">
-        <button id="sync-now" type="button" class="btn-small">Synchronizovat</button>
-        <span class="sync-state" id="sync-status"></span>
-        <div class="user-menu">
-          <button id="user-menu-btn" type="button" class="user-avatar" aria-haspopup="true" aria-expanded="false" title="Účet">
-            <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path fill="currentColor" d="M12 12c2.7 0 4.9-2.2 4.9-4.9S14.7 2.2 12 2.2 7.1 4.4 7.1 7.1 9.3 12 12 12Zm0 2.4c-3.3 0-9.8 1.6-9.8 4.9v2.4h19.6v-2.4c0-3.3-6.5-4.9-9.8-4.9Z"/></svg>
-          </button>
-          <div id="user-popover" class="user-popover" hidden>
-            <div class="who">Přihlášen jako</div>
-            <div class="who-email"><b id="user-email"></b></div>
+      <div class="app-shell" id="app-shell" style="display:none">
+        <aside class="sidebar" id="sidebar">
+          <div class="sidebar-brand">
+            <img src="icon2.png" alt="logo" onerror="this.style.display='none'">
+            <span class="name">Kontrola kvality</span>
+          </div>
+          <nav class="sidebar-nav">
+            <button type="button" class="nav-item active" data-view="vyjezd"><span class="ico">🔧</span> Kontrolní výjezd</button>
+            <button type="button" class="nav-item" data-view="zaznamy"><span class="ico">📁</span> Záznamy</button>
+            <button type="button" class="nav-item" data-view="office"><span class="ico">🏢</span> Office – kontrola</button>
+            <button type="button" class="nav-item" data-view="mapa"><span class="ico">🗺️</span> Mapa</button>
+          </nav>
+          <div class="sidebar-foot">
+            <button id="sync-now" type="button" class="btn-small">Synchronizovat</button>
+            <span class="sync-state" id="sync-status"></span>
+            <div class="who">Přihlášen:<br><b id="user-email"></b></div>
             <button id="logout-btn" type="button" class="btn-small danger">Odhlásit</button>
           </div>
-        </div>
-      </div>
+        </aside>
+        <div class="sidebar-backdrop" id="sidebar-backdrop"></div>
 
-      <div class="header">
-        <img src="icon2.png" alt="logo" class="logo" onerror="this.style.display='none'">
-        <div class="header-text">
-          <h1>Kontrola kvality – Foto poznámky</h1>
-          <div class="subtitle">Fotka + podélné & příčné měření + poznámka + GPS + datum</div>
-        </div>
-      </div>
+        <main class="main">
+          <button id="menu-toggle" class="menu-toggle" type="button" aria-label="Menu">☰</button>
 
-      <form id="noteForm">
-        <label>Fotka (foto nebo galerie)</label>
-        <input id="photo" type="file" accept="image/*" capture="camera">
-        <div class="measure-group">
-          <div class="form-section">
-            <span>Rovinatost [mm]</span>
-            <button type="button" class="info-btn" id="rovinatost-info-btn" aria-label="Co znamená rovinatost" aria-expanded="false">i</button>
-          </div>
-          <div id="rovinatost-info" class="info-box" hidden>Rovinatost se měří 2m latí. Vyhovující = aspoň 75 % naměřených hodnot je do 10 mm.</div>
-          <label>Podélné měření</label>
-          <div class="chip-row">
-            <input id="longNote" class="num-input" type="text" inputmode="decimal" placeholder="Zadejte číslo...">
-            <button type="button" class="btn-small add-val" data-target="long">+ Přidat</button>
-          </div>
-          <div id="long-chips" class="chips"></div>
-          <label>Příčné měření</label>
-          <div class="chip-row">
-            <input id="crossNote" class="num-input" type="text" inputmode="decimal" placeholder="Zadejte číslo...">
-            <button type="button" class="btn-small add-val" data-target="cross">+ Přidat</button>
-          </div>
-          <div id="cross-chips" class="chips"></div>
-          <div id="rovinatost-verdict" class="verdict-box"></div>
-        </div>
-        <label>Poznámka</label>
-        <textarea id="noteField" placeholder="Doplňující poznámka..."></textarea>
-        <label>Složka</label>
-        <input id="folderName" placeholder="Název složky (prázdné = dnešní datum)..." style="width: 100%; padding: 10px; border-radius: 8px; border: 1px solid #e0e0e0; font-family: inherit; font-size: 0.95rem; margin-top: 6px;">
-        <div class="form-actions">
-          <button id="saveBtn" type="submit">Uložit záznam</button>
-          <button id="show-map" type="button" style="background:var(--brand);color:#fff;">Zobrazit mapu záznamů</button>
-          <button id="clearAll" type="button" class="btn-secondary">Vymazat vše</button>
-          <button id="exportBtn" type="button" class="btn-secondary">Exportovat data</button>
-          <button id="importBtn" type="button" class="btn-secondary">Importovat data</button>
-          <div id="status"></div>
-          <input type="file" id="importFile" accept=".json" style="display: none;">
-        </div>
-      </form>
+          <!-- KONTROLNÍ VÝJEZD -->
+          <section id="view-vyjezd" class="view active">
+            <h1 class="view-head">🔧 Kontrolní výjezd</h1>
+            <div class="view-sub">Terénní záznam: fotka + podélné &amp; příčné měření + poznámka + GPS + datum</div>
+            <form id="noteForm">
+              <label>Kdo dnes kontroluje (výjezd)</label>
+              <select id="dnesniKontroloval" style="width:100%;padding:10px;border-radius:8px;border:1px solid #e0e0e0;font-family:inherit;font-size:0.93rem;margin-top:6px;background:#fff">
+                <option value="">— vyber obsazení (předvyplní se do office) —</option>
+              </select>
+              <label style="margin-top:1rem">Fotka (foto nebo galerie)</label>
+              <input id="photo" type="file" accept="image/*" capture="camera">
+              <div class="measure-group">
+                <div class="form-section">
+                  <span>Rovinatost [mm]</span>
+                  <button type="button" class="info-btn" id="rovinatost-info-btn" aria-label="Co znamená rovinatost" aria-expanded="false">i</button>
+                </div>
+                <div id="rovinatost-info" class="info-box" hidden>Rovinatost se měří 2m latí. Vyhovující = aspoň 75 % naměřených hodnot je do 10 mm.</div>
+                <label>Podélné měření</label>
+                <div class="chip-row">
+                  <input id="longNote" class="num-input" type="text" inputmode="decimal" placeholder="Zadejte číslo...">
+                  <button type="button" class="btn-small add-val" data-target="long">+ Přidat</button>
+                </div>
+                <div id="long-chips" class="chips"></div>
+                <label>Příčné měření</label>
+                <div class="chip-row">
+                  <input id="crossNote" class="num-input" type="text" inputmode="decimal" placeholder="Zadejte číslo...">
+                  <button type="button" class="btn-small add-val" data-target="cross">+ Přidat</button>
+                </div>
+                <div id="cross-chips" class="chips"></div>
+                <div id="rovinatost-verdict" class="verdict-box"></div>
+              </div>
+              <label>Poznámka</label>
+              <textarea id="noteField" placeholder="Doplňující poznámka..."></textarea>
+              <label>Složka</label>
+              <input id="folderName" placeholder="Název složky (prázdné = dnešní datum)..." style="width: 100%; padding: 10px; border-radius: 8px; border: 1px solid #e0e0e0; font-family: inherit; font-size: 0.95rem; margin-top: 6px;">
+              <div class="form-actions">
+                <button id="saveBtn" type="submit">Uložit záznam</button>
+                <div id="status"></div>
+              </div>
+            </form>
+          </section>
 
-      <button id="backToFoldersBtn" type="button" class="btn-secondary" style="display: none; margin-top: 1rem;">Zpět na složky</button>
-      <section class="folders" id="folders"></section>
-      <section class="entries" id="entries"></section>
+          <!-- ZÁZNAMY -->
+          <section id="view-zaznamy" class="view">
+            <h1 class="view-head">📁 Záznamy</h1>
+            <div class="form-actions" style="margin-bottom:1rem">
+              <button id="backToFoldersBtn" type="button" class="btn-secondary" style="display: none;">Zpět na složky</button>
+              <button id="exportBtn" type="button" class="btn-secondary">Exportovat data</button>
+              <button id="importBtn" type="button" class="btn-secondary">Importovat data</button>
+              <button id="clearAll" type="button" class="btn-secondary">Vymazat vše</button>
+              <input type="file" id="importFile" accept=".json" style="display: none;">
+            </div>
+            <section class="folders" id="folders"></section>
+            <section class="entries" id="entries"></section>
+          </section>
 
-      <!-- Map overlay -->
-      <div id="map-overlay" aria-hidden="true" style="position:fixed;inset:0;display:none;z-index:99999;background:rgba(0,0,0,0.5);align-items:center;justify-content:center;">
-          <div id="map-content" style="position:relative;background:#fff;border-radius:12px;box-shadow:0 10px 30px rgba(0,0,0,0.4);padding:16px;max-width:1100px;width:95vw;max-height:95vh;display:flex;flex-direction:column;">
-            <button id="map-close" aria-label="Zavřít mapu" title="Zavřít mapu" style="position:absolute;right:12px;top:12px;background:var(--brand);color:#fff;border:none;width:36px;height:36px;border-radius:50%;font-size:18px;line-height:1;cursor:pointer;display:flex;align-items:center;justify-content:center;">✕</button>
-          <h2 style="margin-top:0">Mapa záznamů</h2>
-          <div id="map" style="width:100%;height:70vh;border-radius:8px;"></div>
-        </div>
+          <!-- OFFICE – DOPLNĚNÍ KONTROLY -->
+          <section id="view-office" class="view">
+            <h1 class="view-head">🏢 Office – doplnění kontroly</h1>
+            <div class="view-sub">Po výjezdu: vyber záznam, nahraj PDF „Záznam o opravě" a doplň posouzení kvality.</div>
+            <div id="office-body"></div>
+          </section>
+
+          <!-- MAPA -->
+          <section id="view-mapa" class="view">
+            <h1 class="view-head">🗺️ Mapa záznamů</h1>
+            <div id="map" style="width:100%;height:72vh;border-radius:10px;"></div>
+          </section>
+        </main>
       </div>
 
       <div id="viewer" aria-hidden="true">
@@ -217,7 +306,7 @@
 
       <footer>
         Aplikace funguje offline. Data jsou uložena lokálně v zařízení (IndexedDB).<br>
-        <span style="color:var(--muted);font-size:0.95em;">Verze aplikace: v3.1.0-test</span>
+        <span style="color:var(--muted);font-size:0.95em;">Verze aplikace: v3.2.0-test</span>
       </footer>
 
       <script>
@@ -452,7 +541,8 @@
       let heavyInitDone = false; // render + sync spustit jen jednou (jinak souběžné transakce IndexedDB zatuhnou na Androidu)
       async function showApp(session){
         document.getElementById('login-overlay').style.display = 'none';
-        document.getElementById('user-bar').style.display = 'flex';
+        document.getElementById('app-shell').style.display = 'flex';
+        document.body.classList.add('app-mode');
         document.getElementById('user-email').textContent = session.user.email || '';
         if(heavyInitDone) return;
         heavyInitDone = true;
@@ -462,7 +552,441 @@
       function showLogin(){
         heavyInitDone = false;
         document.getElementById('login-overlay').style.display = 'flex';
-        document.getElementById('user-bar').style.display = 'none';
+        document.getElementById('app-shell').style.display = 'none';
+        document.body.classList.remove('app-mode');
+      }
+
+      // --- Přepínání karet (views) ---
+      function switchView(view){
+        document.querySelectorAll('.view').forEach(v=> v.classList.toggle('active', v.id === 'view-'+view));
+        document.querySelectorAll('.nav-item').forEach(n=> n.classList.toggle('active', n.dataset.view === view));
+        // zavřít mobilní menu
+        document.getElementById('sidebar').classList.remove('open');
+        if(view === 'mapa') renderMap();
+        if(view === 'office') renderOffice();
+        if(view === 'zaznamy') renderFoldersAndEntries();
+      }
+
+      // --- Mapa (inline karta) ---
+      let mapInstance = null;
+      async function renderMap(){
+        try{
+          await new Promise(r => setTimeout(r, 60)); // počkej na vykreslení karty
+          if(!mapInstance){
+            mapInstance = L.map('map').setView([49.8, 15.5], 7);
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+              attribution: 'Map data © <a href="https://openstreetmap.org">OpenStreetMap</a> contributors',
+              maxZoom: 18,
+            }).addTo(mapInstance);
+          }
+          mapInstance.invalidateSize();
+          mapInstance.eachLayer(layer => { if(layer instanceof L.Marker) mapInstance.removeLayer(layer); });
+          const entries = await getAllEntries();
+          const points = entries.filter(e=>e.coords && e.coords.lat && e.coords.lon);
+          points.forEach(e=>{
+            const marker = L.marker([parseFloat(e.coords.lat), parseFloat(e.coords.lon)]).addTo(mapInstance);
+            marker.bindPopup(`<strong>${e.timeText}</strong><br>${e.longNote||''}<br>${e.crossNote||''}<br>${e.note||''}`);
+          });
+          if(points.length){
+            const bounds = L.latLngBounds(points.map(e=>[parseFloat(e.coords.lat), parseFloat(e.coords.lon)]));
+            mapInstance.fitBounds(bounds.pad(0.15));
+          }
+        }catch(err){ console.error('Chyba mapy:', err); }
+      }
+
+      // ======================= OFFICE ČÁST =======================
+      // Seznam kontrolórů (z MS Forms). Uživatel na začátku výjezdu vybere dnešní obsazení.
+      const OFFICE_INSPECTORS = [
+        'Jan Dedek, Tomáš Vacula',
+        'Jan Dedek, Tomáš Vacula, Tomáš Knot',
+        'Tomáš Vacula, Tomáš Knot',
+        'Jan Dedek',
+        'Jan Dedek, Tomáš Knot',
+        'Tomáš Vacula',
+        'Jan Dedek, Tomáš Novák, Lukáš Popelka'
+      ];
+
+      // Definice office formuláře (sekce → pole). Odpovídá MS Forms „Kontrola kvality FUTTEC".
+      const OFFICE_SCHEMA = [
+        { title: 'Identifikace opravy', fields: [
+          { key:'id_cev', label:'ID opravy / ID CEV', type:'text' },
+          { key:'oprava', label:'Oprava (správce, komunikace, datum a čas ukončení)', type:'text' },
+          { key:'kontrolu_provedl', label:'Kontrolu provedl', type:'radio', options:OFFICE_INSPECTORS },
+          { key:'datum_kontroly', label:'Datum kontroly', type:'date' },
+        ]},
+        { title: 'Vizuální posouzení opravy', fields: [
+          { key:'textura', label:'Textura', type:'radio', options:['Rovnoměrná','Nerovnoměrná','Segregovaná'] },
+          { key:'zhutneni', label:'Zhutnění', type:'radio', options:['Zhutněno','Přehutněno nebo částečně přehutněno','Nedohutněno'] },
+          { key:'vizual_rovinatost', label:'Vizuální hodnocení rovinatosti', type:'radio', options:['Podélná i příčná vyhovující','Podélná nebo příčná nevyhovující','Podélná i příčná nevyhovující'] },
+          { key:'trhliny', label:'Trhliny v opravě', type:'radio', options:['Nejsou žádné trhliny','Jsou ojedinělé trhliny v opravě','Jsou výrazné trhliny v opravě'] },
+          { key:'okoli_realizace', label:'(Interní) posouzení stavu okolí opravy v době realizace', type:'radio', hint:'1=v pořádku (výtluk ohraničen, bez navazujících trhlin), 2=mírně poškozené (trhliny v jiné stopě), 3=poškozené (navazují trhliny)', options:['Okolí opravy v pořádku','Okolí opravy mírně poškozené','Okolí opravy poškozené'] },
+          { key:'okoli_aktualni', label:'(Interní) posouzení stavu okolí opravy', type:'radio', options:['Okolí opravy v pořádku','Okolí opravy mírně poškozené','Okolí opravy poškozené'] },
+        ]},
+        { title: 'Poznámka k rovinatosti a vizuální kontrole', fields: [
+          { key:'office_note', label:'Poznámka', type:'textarea' },
+        ]},
+        { title: 'Míra zhutnění', fields: [
+          { key:'troxler_pouzit', label:'Byl použit Troxler?', type:'radio', options:['Ano','Ne'] },
+          { key:'troxler_hodnoty', label:'Hodnoty z Troxleru', type:'text', showIf:{key:'troxler_pouzit', val:'Ano'} },
+          { key:'troxler_vyhovuje', label:'Je oprava vyhovující?', type:'radio', options:['Vyhovující (nad 95 %)','Nevyhovující (pod 95 %)'], showIf:{key:'troxler_pouzit', val:'Ano'} },
+          { key:'troxler_okoli', label:'Okolí', type:'text', hint:'informativně / poznámky', showIf:{key:'troxler_pouzit', val:'Ano'} },
+        ]},
+        { title: 'Vývrt', fields: [
+          { key:'vyvrt_proveden', label:'Byl proveden vývrt?', type:'radio', options:['Ano','Ne'] },
+          { key:'vyvrt_foto', label:'Fotka vývrtu', type:'photo', showIf:{key:'vyvrt_proveden', val:'Ano'} },
+          { key:'vyvrt_tloustka', label:'Tloušťka vrstvy', type:'text', showIf:{key:'vyvrt_proveden', val:'Ano'} },
+          { key:'spojeni_vrstev', label:'Spojení vrstev', type:'radio', options:['Spojeno','Nespojeno'], showIf:{key:'vyvrt_proveden', val:'Ano'} },
+          { key:'spojeni_vrstev_popis', label:'Spojení vrstev – popis', type:'text', showIf:{key:'vyvrt_proveden', val:'Ano'} },
+          { key:'spojeni_hrana', label:'Spojení na hraně', type:'radio', options:['Spojeno','Nespojeno'], showIf:{key:'vyvrt_proveden', val:'Ano'} },
+          { key:'spojeni_hrana_popis', label:'Spojení na hraně – popis', type:'text', showIf:{key:'vyvrt_proveden', val:'Ano'} },
+          { key:'mezerovitost', label:'Mezerovitost', type:'radio', options:['vyhovující','nevyhovující'], showIf:{key:'vyvrt_proveden', val:'Ano'} },
+        ]},
+        { title: 'Reklamace', fields: [
+          { key:'reklamace', label:'Vyjádření k možným reklamačním a jiným skutečnostem', type:'radio', options:['Záruka byla poskytnuta','Záruka nebyla poskytnuta'] },
+        ]},
+        { title: 'Dokumentace', fields: [
+          { key:'dokumentace', label:'Dokumentace, co tvořil předák', type:'photo', hint:'volitelně foto/obrázek' },
+          { key:'shoda_protokol', label:'Shoda s protokolem o realizaci', type:'radio', options:['Ano','Ne'] },
+        ]},
+      ];
+
+      let officeCurrentId = null;      // právě upravovaný záznam
+      let officePhotos = {};           // dočasné base64 fotky (vyvrt_foto, dokumentace, foto po opravě)
+
+      function escAttr(s){ return escapeHtml(s).replaceAll("'","&#39;"); }
+      function todayISODate(){ const d=new Date(); const p=n=>String(n).padStart(2,'0'); return `${d.getFullYear()}-${p(d.getMonth()+1)}-${p(d.getDate())}`; }
+
+      // Vykreslí seznam záznamů (office) NEBO formulář pro vybraný záznam
+      async function renderOffice(){
+        const body = document.getElementById('office-body');
+        if(officeCurrentId){ await renderOfficeForm(body); return; }
+        const entries = await getAllEntries();
+        const rows = entries.map(e=>{
+          const done = e.officeDone;
+          const oprava = (e.office && e.office.oprava) || (e.repairInfo && e.repairInfo.oprava) || '';
+          const sub = [e.folder||'', oprava].filter(Boolean).join(' · ') || 'bez identifikace';
+          return `<div class="office-row" data-id="${escAttr(e.id)}">
+            <img src="${e.photo||''}" alt="foto" onerror="this.style.visibility='hidden'">
+            <div class="r-main"><div class="t">${escapeHtml(e.timeText||'')}</div><div class="s">${escapeHtml(sub)}</div></div>
+            <span class="status-pill ${done?'done':'wait'}">${done?'✓ hotovo':'⏳ čeká'}</span>
+          </div>`;
+        }).join('');
+        body.innerHTML = `
+          <div class="office-picker">
+            <strong>Vyber záznam k doplnění kontroly</strong>
+            <div class="view-sub" style="margin:6px 0 0">Klepni na záznam z výjezdu a doplň office údaje. „⏳ čeká" = ještě nemá office část.</div>
+            <div class="office-list">${rows || '<div class="view-sub">Zatím žádné záznamy. Nejdřív pořiď záznam v kartě Kontrolní výjezd.</div>'}</div>
+          </div>`;
+        body.querySelectorAll('.office-row').forEach(r=>{
+          r.addEventListener('click', ()=>{ officeCurrentId = r.dataset.id; officePhotos = {}; renderOffice(); });
+        });
+      }
+
+      // Jedno pole formuláře → HTML
+      function officeFieldHtml(f, val){
+        const showAttr = f.showIf ? ` data-showif-key="${f.showIf.key}" data-showif-val="${escAttr(f.showIf.val)}"` : '';
+        let inner = '';
+        if(f.type === 'radio'){
+          inner = `<div class="radio-set">` + f.options.map(o=>{
+            const ck = (val===o);
+            return `<label class="${ck?'checked':''}"><input type="radio" name="of_${f.key}" value="${escAttr(o)}" ${ck?'checked':''}> ${escapeHtml(o)}</label>`;
+          }).join('') + `</div>`;
+        } else if(f.type === 'textarea'){
+          inner = `<textarea data-key="${f.key}">${escapeHtml(val||'')}</textarea>`;
+        } else if(f.type === 'date'){
+          inner = `<input type="date" data-key="${f.key}" value="${escAttr(val||'')}">`;
+        } else if(f.type === 'photo'){
+          const src = officePhotos[f.key] || val || '';
+          inner = `<input type="file" accept="image/*" data-photo-key="${f.key}">
+            <div class="of-photo-row" data-photo-preview="${f.key}">${src?`<div class="of-photo"><img src="${src}"></div>`:''}</div>`;
+        } else {
+          inner = `<input type="text" data-key="${f.key}" value="${escAttr(val||'')}">`;
+        }
+        const hint = f.hint ? `<span class="hint">${escapeHtml(f.hint)}</span>` : '';
+        return `<div class="of-field conditional"${showAttr}><label>${escapeHtml(f.label)}${hint}</label>${inner}</div>`;
+      }
+
+      async function renderOfficeForm(body){
+        const entries = await getAllEntries();
+        const entry = entries.find(e=>e.id===officeCurrentId);
+        if(!entry){ officeCurrentId=null; return renderOffice(); }
+        const o = entry.office || {};
+        // předvyplnění: dnešní kontrolóři + dnešní datum, pokud ještě nevyplněno
+        const defaults = {
+          kontrolu_provedl: o.kontrolu_provedl || localStorage.getItem('kk_dnesni_kontroloval') || '',
+          datum_kontroly: o.datum_kontroly || todayISODate(),
+        };
+        const rovBadge = rovinatostBadge(entry.longNote, entry.crossNote) || '<span class="verdict">nezměřeno</span>';
+        const afterSrc = officePhotos.afterPhoto || entry.afterPhoto || '';
+        const sectionsHtml = OFFICE_SCHEMA.map(sec=>{
+          const fields = sec.fields.map(f=>{
+            let val = (f.key in o) ? o[f.key] : (defaults[f.key] !== undefined ? defaults[f.key] : '');
+            return officeFieldHtml(f, val);
+          }).join('');
+          let extra = '';
+          // za sekci Vizuální posouzení vlož automaticky vyhodnocenou měřenou rovinatost
+          if(sec.title === 'Poznámka k rovinatosti a vizuální kontrole') extra = '';
+          return `<div class="office-section">${escapeHtml(sec.title)}</div>${fields}${extra}`;
+        }).join('');
+
+        body.innerHTML = `
+          <div class="office-form">
+            <button type="button" class="btn-small" id="office-back" style="margin-bottom:1rem">← Zpět na seznam</button>
+
+            <div class="office-section" style="margin-top:0;padding-top:0;border-top:none">Import ze „Záznamu o opravě" (PDF)</div>
+            <div class="of-field">
+              <label>Nahraj PDF „Záznam o opravě"<span class="hint">Vytáhne identifikaci opravy a fotku po opravě.</span></label>
+              <div class="pdf-drop" id="pdf-drop">📄 Klepni a vyber PDF (nebo přetáhni sem)</div>
+              <input type="file" id="pdf-input" accept="application/pdf" style="display:none">
+              <div id="pdf-status" class="hint" style="margin-top:6px"></div>
+              <div id="pdf-images" class="of-photo-row"></div>
+            </div>
+            <div class="of-field">
+              <label>Foto po opravě (z PDF)</label>
+              <div class="of-photo-row" id="after-photo-preview">${afterSrc?`<div class="of-photo"><img src="${afterSrc}"><div class="cap">po opravě</div></div>`:'<span class="hint">zatím nenahráno</span>'}</div>
+            </div>
+
+            <div class="office-section">Foto při kontrole (z výjezdu)</div>
+            <div class="of-photo-row">${entry.photo?`<div class="of-photo"><img src="${entry.photo}"><div class="cap">${escapeHtml(entry.timeText||'')}</div></div>`:'<span class="hint">bez fotky</span>'}</div>
+
+            ${sectionsHtml}
+
+            <div class="office-section">Měřená rovinatost (z výjezdu, auto)</div>
+            <div class="of-field">
+              <label>Odečtené hodnoty z klínku</label>
+              <div>Podélně: ${escapeHtml(entry.longNote||'—')}<br>Příčně: ${escapeHtml(entry.crossNote||'—')}</div>
+              <div style="margin-top:8px">Vyhodnocení: ${rovBadge}</div>
+            </div>
+
+            <div class="office-actions">
+              <button type="button" id="office-save">Uložit office část</button>
+              <button type="button" class="btn-secondary" id="office-cancel">Zrušit</button>
+              <span id="office-msg" class="hint"></span>
+            </div>
+          </div>`;
+
+        wireOfficeForm(body, entry);
+      }
+
+      function wireOfficeForm(body, entry){
+        // radio: vizuální označení + podmíněné zobrazení
+        function refreshConditionals(){
+          const vals = {};
+          body.querySelectorAll('input[type=radio]:checked').forEach(r=>{ vals[r.name.replace(/^of_/,'')] = r.value; });
+          body.querySelectorAll('.conditional[data-showif-key]').forEach(el=>{
+            const k = el.getAttribute('data-showif-key'); const v = el.getAttribute('data-showif-val');
+            el.hidden = (vals[k] !== v);
+          });
+        }
+        body.querySelectorAll('.radio-set').forEach(set=>{
+          set.addEventListener('change', ()=>{
+            set.querySelectorAll('label').forEach(l=> l.classList.toggle('checked', l.querySelector('input').checked));
+            refreshConditionals();
+          });
+        });
+        refreshConditionals();
+
+        // fotky (vyvrt_foto, dokumentace)
+        body.querySelectorAll('input[data-photo-key]').forEach(inp=>{
+          inp.addEventListener('change', async ()=>{
+            if(!inp.files || !inp.files[0]) return;
+            const key = inp.dataset.photoKey;
+            officePhotos[key] = await compressImage(inp.files[0]);
+            const prev = body.querySelector(`[data-photo-preview="${key}"]`);
+            if(prev) prev.innerHTML = `<div class="of-photo"><img src="${officePhotos[key]}"></div>`;
+          });
+        });
+
+        // import PDF
+        const pdfDrop = body.querySelector('#pdf-drop');
+        const pdfInput = body.querySelector('#pdf-input');
+        pdfDrop.addEventListener('click', ()=> pdfInput.click());
+        pdfDrop.addEventListener('dragover', e=>{ e.preventDefault(); pdfDrop.style.background='#e3eefc'; });
+        pdfDrop.addEventListener('dragleave', ()=>{ pdfDrop.style.background=''; });
+        pdfDrop.addEventListener('drop', e=>{ e.preventDefault(); pdfDrop.style.background=''; if(e.dataTransfer.files[0]) importRepairPdf(e.dataTransfer.files[0], body); });
+        pdfInput.addEventListener('change', ()=>{ if(pdfInput.files[0]) importRepairPdf(pdfInput.files[0], body); });
+
+        body.querySelector('#office-back').addEventListener('click', ()=>{ officeCurrentId=null; officePhotos={}; renderOffice(); });
+        body.querySelector('#office-cancel').addEventListener('click', ()=>{ officeCurrentId=null; officePhotos={}; renderOffice(); });
+        body.querySelector('#office-save').addEventListener('click', ()=> saveOffice(body, entry));
+      }
+
+      // Sesbírá hodnoty z formuláře do objektu
+      function readOfficeForm(body){
+        const o = {};
+        body.querySelectorAll('[data-key]').forEach(inp=>{ o[inp.dataset.key] = inp.value.trim(); });
+        body.querySelectorAll('input[type=radio]:checked').forEach(r=>{ o[r.name.replace(/^of_/,'')] = r.value; });
+        return o;
+      }
+
+      async function saveOffice(body, entry){
+        const o = readOfficeForm(body);
+        entry.office = o;
+        // fotky
+        for(const k of Object.keys(officePhotos)){
+          if(k === 'afterPhoto') entry.afterPhoto = officePhotos[k];
+          else { entry.office[k] = officePhotos[k]; }
+        }
+        // automatický verdikt rovinatosti z terénního měření
+        entry.office.rovinatost_verdikt = rovinatostVerdiktText(entry.longNote, entry.crossNote);
+        entry.officeDone = true;
+        // zapamatuj dnešní kontrolóry pro příště
+        if(o.kontrolu_provedl) localStorage.setItem('kk_dnesni_kontroloval', o.kontrolu_provedl);
+        // ponech synced=false, ať se změna případně dosynchronizuje (core pole)
+        await updateEntry(entry);
+        document.getElementById('office-msg').textContent = '✓ uloženo';
+        setTimeout(()=>{ officeCurrentId=null; officePhotos={}; renderOffice(); }, 500);
+      }
+
+      // Textový verdikt rovinatosti (do office dat)
+      function rovinatostVerdiktText(longStr, crossStr){
+        const vals = parseRovinatostVals(longStr).concat(parseRovinatostVals(crossStr));
+        if(vals.length === 0) return 'Neměřeno';
+        const ok = vals.filter(v=>v<=10).length;
+        return (ok/vals.length) >= 0.75 ? 'vyhovující (do 10 mm - 75 % výsledků)' : 'nevyhovující (nad 10 mm - více než 25 % výsledků)';
+      }
+
+      // --- Parsování PDF „Záznam o opravě" (text + fotky) ---
+      async function importRepairPdf(file, body){
+        const status = body.querySelector('#pdf-status');
+        status.textContent = 'Načítám PDF…';
+        try{
+          if(!window.pdfjsLib){ status.textContent = '✕ Knihovna pdf.js se nenačetla (offline?).'; return; }
+          pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+          const buf = await file.arrayBuffer();
+          const pdf = await pdfjsLib.getDocument({ data: buf }).promise;
+          const page = await pdf.getPage(1);
+          const lines = await pdfLines(page);
+          const info = parseRepairText(lines);
+          // předvyplň identifikaci
+          const idInp = body.querySelector('[data-key="id_cev"]');
+          const oprInp = body.querySelector('[data-key="oprava"]');
+          if(idInp && info.id_cev) idInp.value = info.id_cev;
+          if(oprInp) oprInp.value = [info.spravce, info.komunikace, info.datum_ukonceni].filter(Boolean).join(', ');
+          // fotky z PDF
+          const imgs = await pdfImages(page);
+          const imgWrap = body.querySelector('#pdf-images');
+          imgWrap.innerHTML = imgs.map((src,i)=>`<div class="pick-thumb ${i===imgs.length-1?'sel':''}" data-src="${i}"><img src="${src}"><div class="cap" style="font-size:0.72rem;text-align:center">${i===0?'před':(i===imgs.length-1?'po opravě':'foto '+(i+1))}</div></div>`).join('');
+          // výchozí „foto po opravě" = poslední obrázek
+          if(imgs.length){
+            officePhotos.afterPhoto = imgs[imgs.length-1];
+            updateAfterPreview(body);
+          }
+          imgWrap.querySelectorAll('.pick-thumb').forEach(t=>{
+            t.addEventListener('click', ()=>{
+              imgWrap.querySelectorAll('.pick-thumb').forEach(x=>x.classList.remove('sel'));
+              t.classList.add('sel');
+              officePhotos.afterPhoto = imgs[+t.dataset.src];
+              updateAfterPreview(body);
+            });
+          });
+          status.textContent = `✓ Načteno (${imgs.length} fotek). Zkontroluj identifikaci a vyber foto po opravě.`;
+        }catch(err){ console.error('PDF import:', err); status.textContent = '✕ Chyba čtení PDF: ' + (err.message||err); }
+      }
+
+      function updateAfterPreview(body){
+        const prev = body.querySelector('#after-photo-preview');
+        if(prev && officePhotos.afterPhoto) prev.innerHTML = `<div class="of-photo"><img src="${officePhotos.afterPhoto}"><div class="cap">po opravě</div></div>`;
+      }
+
+      // Poskládá text stránky do řádků podle y-souřadnice
+      async function pdfLines(page){
+        const tc = await page.getTextContent();
+        const items = tc.items.filter(i=>i.str !== undefined);
+        const rows = [];
+        items.forEach(it=>{
+          const y = Math.round(it.transform[5]);
+          let row = rows.find(r=> Math.abs(r.y - y) <= 3);
+          if(!row){ row = { y, parts: [] }; rows.push(row); }
+          row.parts.push({ x: it.transform[4], s: it.str });
+        });
+        rows.sort((a,b)=> b.y - a.y);
+        return rows.map(r=> r.parts.sort((a,b)=>a.x-b.x).map(p=>p.s).join('').trim()).filter(s=>s!=='');
+      }
+
+      // Z řádků vytáhne známé popisky (podporuje starší i novější šablonu)
+      function parseRepairText(lines){
+        const norm = s => s.replace(/\s+/g,' ').replace(/:$/,'').trim().toLowerCase();
+        // popisek → hodnota = následující neprázdný řádek, který sám není popiskem
+        const LABELS = {
+          komunikace: ['označení komunikace','číslo komunikace'],
+          spravce: ['správce','název stavby'],
+          typ_poruchy: ['typ poruchy'],
+          gps: ['gps poloha'],
+          id_cev: ['id cev','id opravy'],
+          datum_ukonceni: ['datum a čas ukončení opravy'],
+          smes: ['použitá směs','typ směsi'],
+          pocet_ohrevu: ['počet ohřevů'],
+          zaruka: ['typ záruka','záruka'],
+          slozeni_smeny: ['složení směny'],
+          opravu_provedl: ['opravu provedl'],
+        };
+        const allLabelStrings = Object.values(LABELS).flat();
+        const isLabel = s => allLabelStrings.some(l=> norm(s) === l || norm(s).startsWith(l));
+        const out = {};
+        for(const [field, labs] of Object.entries(LABELS)){
+          for(let i=0;i<lines.length;i++){
+            if(labs.some(l=> norm(lines[i]) === l || norm(lines[i]).startsWith(l))){
+              // najdi následující neprázdný řádek, který není další popisek
+              for(let j=i+1;j<lines.length;j++){
+                if(lines[j].trim()==='' ) continue;
+                if(isLabel(lines[j])) break;
+                out[field] = lines[j].trim();
+                break;
+              }
+              break;
+            }
+          }
+        }
+        return out;
+      }
+
+      // Vytáhne vložené obrázky ze stránky PDF jako dataURL (v pořadí kreslení)
+      async function pdfImages(page){
+        const ops = await page.getOperatorList();
+        const names = [];
+        for(let i=0;i<ops.fnArray.length;i++){
+          const fn = ops.fnArray[i];
+          if(fn === pdfjsLib.OPS.paintImageXObject || fn === pdfjsLib.OPS.paintJpegXObject){
+            names.push(ops.argsArray[i][0]);
+          }
+        }
+        const out = [];
+        for(const name of names){
+          try{
+            const img = await getPdfObj(page, name);
+            const url = pdfImgToDataURL(img);
+            if(url) out.push(url);
+          }catch(e){ console.warn('img extract', name, e); }
+        }
+        return out;
+      }
+      function getPdfObj(page, name){
+        return new Promise((res, rej)=>{
+          try{
+            if(page.objs.has && page.objs.has(name)) return res(page.objs.get(name));
+            page.objs.get(name, res);
+          }catch(e){
+            try{ page.commonObjs.get(name, res); }catch(e2){ rej(e2); }
+          }
+        });
+      }
+      function pdfImgToDataURL(img){
+        if(!img) return null;
+        const w = img.width, h = img.height;
+        const canvas = document.createElement('canvas');
+        canvas.width = w; canvas.height = h;
+        const ctx = canvas.getContext('2d');
+        if(img.bitmap){ ctx.drawImage(img.bitmap, 0, 0); }
+        else if(img.data){
+          const src = img.data; const out = new Uint8ClampedArray(w*h*4);
+          const kind = img.kind; // 1=GRAY,2=RGB,3=RGBA
+          if(kind === 3){ out.set(src.subarray(0, w*h*4)); }
+          else if(kind === 2){ for(let i=0,j=0;i<w*h;i++){ out[j++]=src[i*3]; out[j++]=src[i*3+1]; out[j++]=src[i*3+2]; out[j++]=255; } }
+          else { for(let i=0,j=0;i<w*h;i++){ const v=src[i]; out[j++]=v; out[j++]=v; out[j++]=v; out[j++]=255; } }
+          ctx.putImageData(new ImageData(out, w, h), 0, 0);
+        } else { return null; }
+        return canvas.toDataURL('image/jpeg', 0.8);
       }
 
       async function saveEntry(photoFile, longNote, crossNote, note, folderName){
@@ -569,7 +1093,6 @@
             });
             
             statusEl.textContent = `${Object.keys(folders).length} ${Object.keys(folders).length === 1 ? 'složka' : 'složky'}`;
-            document.getElementById('noteForm').style.display = '';
 
         } else {
             // ENTRIES VIEW
@@ -588,7 +1111,8 @@
                 if (rovBadge) notesHtml += `<p><strong>📐 Rovinatost:</strong> ${rovBadge}</p>`;
                 if (e.note) notesHtml += `<p><strong>📝 Poznámka:</strong> ${escapeHtml(e.note)}</p>`;
                 const syncBadge = e.synced ? '' : '<span class="badge-unsynced">⏳ nesynch.</span>';
-                div.innerHTML = `<div class="entry-content"><img class="thumb" src="${e.photo}" alt="foto"><div class="meta"><div class="meta-header"><strong>${e.timeText}${syncBadge}</strong><span class="meta-info">${coordsText}</span></div>${notesHtml}<div class="actions"><button class="btn-small view-btn" data-id="${e.id}">Zobrazit</button><button class="btn-small danger delete-btn" data-id="${e.id}">Smazat</button><button class="btn-small download-btn" data-id="${e.id}">Stáhnout foto</button><button class="btn-small move-btn" data-id="${e.id}">Přesunout</button></div></div></div>`;
+                const officeBadge = `<span class="status-pill ${e.officeDone?'done':'wait'}" style="margin-left:6px">${e.officeDone?'✓ office':'⏳ office'}</span>`;
+                div.innerHTML = `<div class="entry-content"><img class="thumb" src="${e.photo}" alt="foto"><div class="meta"><div class="meta-header"><strong>${e.timeText}${syncBadge}${officeBadge}</strong><span class="meta-info">${coordsText}</span></div>${notesHtml}<div class="actions"><button class="btn-small view-btn" data-id="${e.id}">Zobrazit</button><button class="btn-small danger delete-btn" data-id="${e.id}">Smazat</button><button class="btn-small download-btn" data-id="${e.id}">Stáhnout foto</button><button class="btn-small move-btn" data-id="${e.id}">Přesunout</button></div></div></div>`;
                 div.querySelector('.view-btn').addEventListener('click', () => viewFull(e.id));
                 div.querySelector('.delete-btn').addEventListener('click', async () => { if (confirm('Opravdu smazat tento záznam?')) { await deleteEntryById(e.id); await renderFoldersAndEntries(folderToShow); } });
                 div.querySelector('.download-btn').addEventListener('click', () => downloadPhoto(e.photo, e.id));
@@ -622,7 +1146,6 @@
                 entriesEl.appendChild(div);
             });
             statusEl.textContent = `${entriesInFolder.length} ${entriesInFolder.length === 1 ? 'záznam' : 'záznamy'}`;
-            document.getElementById('noteForm').style.display = 'none';
         }
     }
       
@@ -660,8 +1183,11 @@
           ${entry.crossNote?`<div class="field"><strong>↔️ Příčné měření</strong><div class="field-value">${escapeHtml(entry.crossNote)}</div></div>`:''}
           ${rovBadge?`<div class="field"><strong>📐 Rovinatost</strong><div class="field-value">${rovBadge}</div></div>`:''}
           ${entry.note?`<div class="field"><strong>📝 Poznámka</strong><div class="field-value">${escapeHtml(entry.note)}</div></div>`:''}
+          ${entry.afterPhoto?`<div class="field"><strong>📷 Foto po opravě</strong><img src="${entry.afterPhoto}" alt="Foto po opravě"></div>`:''}
+          ${officeSummaryHtml(entry)}
           <div style="margin-top:12px;display:flex;gap:8px;flex-wrap:wrap">
             <button id="viewer-download" class="btn-small">Stáhnout foto</button>
+            <button id="viewer-office" class="btn-small">${entry.officeDone?'Upravit office část':'Doplnit office část'}</button>
             <button id="edit-coords-btn" class="btn-small">Upravit souřadnice</button>
             <button id="viewer-delete" class="btn-small danger">Smazat záznam</button>
           </div>
@@ -712,10 +1238,26 @@
             }
         };
 
-        document.getElementById('viewer-close').onclick = closeViewer; 
+        document.getElementById('viewer-close').onclick = closeViewer;
         document.getElementById('viewer-backdrop').onclick = closeViewer;
         document.getElementById('viewer-download').onclick = ()=> downloadPhoto(entry.photo, entry.id);
+        document.getElementById('viewer-office').onclick = ()=>{ closeViewer(); officeCurrentId = entry.id; officePhotos = {}; switchView('office'); };
         document.getElementById('viewer-delete').onclick = async ()=>{ if(confirm('Opravdu smazat tento záznam?')){ await deleteEntryById(entry.id); closeViewer(); await renderFoldersAndEntries(); }};
+      }
+
+      // Souhrn office části do detailu záznamu (jen vyplněná pole)
+      function officeSummaryHtml(entry){
+        const o = entry.office;
+        if(!o || !entry.officeDone) return '';
+        const rows = [];
+        OFFICE_SCHEMA.forEach(sec=> sec.fields.forEach(f=>{
+          if(f.type === 'photo') return;
+          const v = o[f.key];
+          if(v) rows.push(`<div><strong>${escapeHtml(f.label)}:</strong> ${escapeHtml(v)}</div>`);
+        }));
+        if(o.rovinatost_verdikt) rows.push(`<div><strong>Rovinatost (auto):</strong> ${escapeHtml(o.rovinatost_verdikt)}</div>`);
+        const vyvrtFoto = o.vyvrt_foto ? `<div style="margin-top:6px"><strong>Fotka vývrtu:</strong><br><img src="${o.vyvrt_foto}" alt="vývrt" style="max-width:220px"></div>` : '';
+        return `<div class="field"><strong>🏢 Office část kontroly</strong><div class="field-value" style="display:grid;gap:4px;margin-top:6px">${rows.join('')}${vyvrtFoto}</div></div>`;
       }
 
       // wire up form and registration
@@ -755,18 +1297,18 @@
           });
         });
 
-        // Menu účtu (panáček): otevření/zavření popoveru s e-mailem a odhlášením
-        const userMenuBtn = document.getElementById('user-menu-btn');
-        const userPopover = document.getElementById('user-popover');
-        const setUserMenu = (open)=>{ userPopover.hidden = !open; userMenuBtn.setAttribute('aria-expanded', open ? 'true' : 'false'); };
-        userMenuBtn.addEventListener('click', (e)=>{ e.stopPropagation(); setUserMenu(userPopover.hidden); });
-        document.addEventListener('click', (e)=>{ if(!userPopover.hidden && !e.target.closest('.user-menu')) setUserMenu(false); });
-        document.addEventListener('keydown', (e)=>{ if(e.key === 'Escape') setUserMenu(false); });
-
-        document.getElementById('logout-btn').addEventListener('click', async ()=>{ setUserMenu(false); await sb.auth.signOut(); });
+        document.getElementById('logout-btn').addEventListener('click', async ()=>{ await sb.auth.signOut(); });
         document.getElementById('sync-now').addEventListener('click', ()=> syncNow());
         window.addEventListener('online', ()=> syncNow());
         window.addEventListener('offline', ()=> setSyncStatus('● offline'));
+
+        // --- Postranní panel: přepínání karet + mobilní menu ---
+        document.querySelectorAll('.nav-item').forEach(btn=>{
+          btn.addEventListener('click', ()=> switchView(btn.dataset.view));
+        });
+        const sidebarEl = document.getElementById('sidebar');
+        document.getElementById('menu-toggle').addEventListener('click', ()=> sidebarEl.classList.toggle('open'));
+        document.getElementById('sidebar-backdrop').addEventListener('click', ()=> sidebarEl.classList.remove('open'));
 
         // Reakce na změnu přihlášení
         sb.auth.onAuthStateChange(async (_event, session)=>{
@@ -778,58 +1320,11 @@
 
         document.getElementById('backToFoldersBtn').addEventListener('click', () => renderFoldersAndEntries());
 
-        const mapOverlay = document.getElementById('map-overlay');
-        const mapCloseBtn = document.getElementById('map-close');
-        let mapInstance = null;
-
-        // Map button handler
-        setTimeout(()=>{
-          const showMapBtn = document.getElementById('show-map');
-          if(showMapBtn){
-            showMapBtn.addEventListener('click', async ()=>{
-              try{
-                mapOverlay.setAttribute('aria-hidden','false');
-                mapOverlay.style.display = 'flex';
-                document.documentElement.style.overflow='hidden';
-                // Wait a moment for DOM to render
-                await new Promise(r => setTimeout(r, 100));
-                // Get all entries with coords
-                const entries = await getAllEntries();
-                const points = entries.filter(e=>e.coords && e.coords.lat && e.coords.lon);
-                // Init map only once
-                if(!mapInstance){
-                  mapInstance = L.map('map').setView([49.8, 15.5], 7);
-                  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-                  
-                    attribution: 'Map data © <a href="https://openstreetmap.org">OpenStreetMap</a> contributors',
-                    maxZoom: 18,
-                  }).addTo(mapInstance);
-                }
-                // Invalidate size after showing
-                mapInstance.invalidateSize();
-                // Remove old markers
-                mapInstance.eachLayer(layer => { if(layer instanceof L.Marker) mapInstance.removeLayer(layer); });
-                // Add markers
-                points.forEach(e=>{
-                  const marker = L.marker([parseFloat(e.coords.lat), parseFloat(e.coords.lon)]).addTo(mapInstance);
-                  marker.bindPopup(`<strong>${e.timeText}</strong><br>${e.longNote||''}<br>${e.crossNote||''}<br>${e.note||''}`);
-                });
-                if(points.length){
-                  const bounds = L.latLngBounds(points.map(e=>[parseFloat(e.coords.lat), parseFloat(e.coords.lon)]));
-                  mapInstance.fitBounds(bounds.pad(0.15));
-                }
-              }catch(err){
-                console.error('Chyba mapy:', err);
-                alert('Chyba při otevírání mapy: '+err.message);
-              }
-            });
-          }
-        }, 100);
-        mapCloseBtn.onclick = ()=>{
-          mapOverlay.setAttribute('aria-hidden','true');
-          mapOverlay.style.display = 'none';
-          document.documentElement.style.overflow='';
-        };
+        // Dnešní kontrolóři (uloží se pro předvyplnění office části)
+        const dnesniSel = document.getElementById('dnesniKontroloval');
+        OFFICE_INSPECTORS.forEach(name=>{ const opt=document.createElement('option'); opt.value=name; opt.textContent=name; dnesniSel.appendChild(opt); });
+        dnesniSel.value = localStorage.getItem('kk_dnesni_kontroloval') || '';
+        dnesniSel.addEventListener('change', ()=>{ localStorage.setItem('kk_dnesni_kontroloval', dnesniSel.value); });
         // --- Rovinatost: zadávání hodnot jako odznáčky (chips) ---
         const measureState = { long: [], cross: [] };
         const valInput = (t)=> document.getElementById(t==='long' ? 'longNote' : 'crossNote');
