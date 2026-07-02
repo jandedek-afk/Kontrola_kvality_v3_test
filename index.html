@@ -185,7 +185,8 @@
     .photos-compare .pc-col{flex:1 1 260px;min-width:220px}
     .photos-compare .pc-title{font-weight:600;font-size:0.88rem;color:#33414f;margin-bottom:6px}
     .photos-compare .of-photo{width:100%}
-    .photos-compare .of-photo img{width:100%;height:auto;max-height:320px}
+    .photos-compare .of-photo img{width:100%;height:170px;object-fit:cover;cursor:zoom-in}
+    .of-photo img{cursor:zoom-in}
     .office-actions{margin-top:1.5rem;display:flex;gap:10px;flex-wrap:wrap;align-items:center;padding-top:1rem;border-top:1px solid #eef1f6}
     /* --- Kontrolní výjezd: sekce jako karty --- */
     #noteForm{background:transparent;box-shadow:none;padding:0}
@@ -399,8 +400,8 @@
           </span>
         </div>
         <div id="fp-tabs">
-          <button type="button" data-tab="pri" class="active">📷 Při kontrole</button>
           <button type="button" data-tab="po">📸 Po opravě</button>
+          <button type="button" data-tab="pri" class="active">📷 Při kontrole</button>
         </div>
         <img id="fp-img" src="" alt="foto">
       </div>
@@ -913,6 +914,8 @@
       }
       function setFloatAfter(po){ floatState.po = po || ''; const fp = document.getElementById('float-photo'); if(fp && !fp.hidden) renderFloatImg(); }
       function hideFloatPhoto(){ const fp = document.getElementById('float-photo'); if(fp) fp.hidden = true; }
+      // Zobrazí fotku na celou obrazovku
+      function openLightbox(src){ if(!src) return; document.getElementById('pl-img').src = src; document.getElementById('photo-lightbox').hidden = false; }
 
       // Vykreslí seznam záznamů (office) NEBO formulář pro vybraný záznam
       async function renderOffice(){
@@ -1006,12 +1009,12 @@
             <div class="office-section">Fotky</div>
             <div class="photos-compare">
               <div class="pc-col">
-                <div class="pc-title">Foto při kontrole (z výjezdu)</div>
-                <div class="of-photo-row">${entry.photo?`<div class="of-photo"><img src="${entry.photo}"><div class="cap">${escapeHtml(entry.timeText||'')}</div></div>`:'<span class="hint">bez fotky</span>'}</div>
-              </div>
-              <div class="pc-col">
                 <div class="pc-title">Foto po opravě (z PDF)</div>
                 <div class="of-photo-row" id="after-photo-preview">${afterSrc?`<div class="of-photo"><img src="${afterSrc}"><div class="cap">po opravě</div></div>`:'<span class="hint">zatím nenahráno (naimportuj PDF)</span>'}</div>
+              </div>
+              <div class="pc-col">
+                <div class="pc-title">Foto při kontrole (z výjezdu)</div>
+                <div class="of-photo-row">${entry.photo?`<div class="of-photo"><img src="${entry.photo}"><div class="cap">${escapeHtml(entry.timeText||'')}</div></div>`:'<span class="hint">bez fotky</span>'}</div>
               </div>
             </div>
             ${entry.photo?`<button type="button" class="btn-small" id="reopen-float" style="margin-top:10px">📌 Otevřít plovoucí okno s fotem</button>`:''}
@@ -1698,9 +1701,12 @@
           fp.querySelectorAll('#fp-tabs button').forEach(b=> b.addEventListener('click', ()=>{ if(b.disabled) return; floatState.tab = b.dataset.tab; renderFloatImg(); }));
           // Klik na fotku → celá obrazovka (maximální detail)
           const lb = document.getElementById('photo-lightbox');
-          document.getElementById('fp-img').addEventListener('click', ()=>{ document.getElementById('pl-img').src = document.getElementById('fp-img').src; lb.hidden = false; });
+          document.getElementById('fp-img').addEventListener('click', ()=> openLightbox(document.getElementById('fp-img').src));
           lb.addEventListener('click', ()=> lb.hidden = true);
         })();
+
+        // Klik na jakoukoli fotku v kartách (.of-photo) → zvětšení na celou obrazovku
+        document.addEventListener('click', e=>{ const img=e.target; if(img.tagName==='IMG' && img.closest('.of-photo')) openLightbox(img.src); });
 
         // Reakce na změnu přihlášení
         sb.auth.onAuthStateChange(async (_event, session)=>{
