@@ -189,8 +189,24 @@
     .name-chip{cursor:pointer;background:#fff;border:1px solid #cdddf3;color:#111;border-radius:999px;padding:7px 15px;font-size:0.9rem;font-weight:500}
     .name-chip:hover{background:#f4f8fe;opacity:1}
     .name-chip.sel{background:var(--brand);color:#fff;border-color:var(--brand)}
-    .names-selected-label{font-size:0.82rem;color:var(--muted);margin:8px 0 2px}
     .photo-preview img{width:100%;max-width:280px;height:auto;border-radius:8px;border:1px solid #e6eef9;margin-top:10px}
+    /* --- Výběr jmen (sbalený: chipy + tlačítko +) --- */
+    .names-wrap{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+    .names-selected{display:flex;gap:6px;flex-wrap:wrap;align-items:center}
+    .name-selchip{background:#e7f0fd;border-color:#cdddf3}
+    .name-add-btn{width:34px;height:34px;min-width:34px;border-radius:50%;background:var(--brand);color:#fff;border:none;font-size:22px;line-height:1;cursor:pointer;flex-shrink:0;padding:0;display:inline-flex;align-items:center;justify-content:center}
+    .name-add-btn:hover{opacity:0.9}
+    .names-pop{margin-top:10px;border:1px solid #dbe7f7;border-radius:10px;padding:10px;background:#f7fafe}
+    .names-pop[hidden]{display:none}
+    .names-pop-list{display:flex;flex-wrap:wrap;gap:6px}
+    .name-opt{cursor:pointer;background:#fff;border:1px solid #cdddf3;color:#111;border-radius:999px;padding:6px 13px;font-size:0.88rem}
+    .name-opt:hover{background:#eef5fe;opacity:1}
+    .name-opt.sel{background:var(--brand);color:#fff;border-color:var(--brand)}
+    /* --- Nastavení --- */
+    .settings-card{background:#fff;padding:1.1rem;border-radius:12px;box-shadow:0 2px 8px rgba(0,0,0,0.06);max-width:560px}
+    .person-row{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:8px 10px;border:1px solid #eef1f6;border-radius:8px;margin-top:8px}
+    .person-row .del{background:#fde8e8;color:#c62828;border:none;border-radius:6px;padding:5px 10px;cursor:pointer;font-size:0.82rem;font-weight:600}
+    .person-row .del:hover{background:#fbd5d5}
   </style>
 </head>
 <body>
@@ -218,6 +234,7 @@
             <button type="button" class="nav-item" data-view="zaznamy"><span class="ico">📁</span> Záznamy</button>
             <button type="button" class="nav-item" data-view="office"><span class="ico">🏢</span> Office – kontrola</button>
             <button type="button" class="nav-item" data-view="mapa"><span class="ico">🗺️</span> Mapa</button>
+            <button type="button" class="nav-item" data-view="nastaveni" style="margin-top:auto"><span class="ico">⚙️</span> Nastavení</button>
           </nav>
           <div class="sidebar-foot">
             <button id="sync-now" type="button" class="btn-small">Synchronizovat</button>
@@ -237,7 +254,7 @@
             <div class="view-sub">Terénní záznam: fotka + podélné &amp; příčné měření + poznámka + GPS. Ukládá se automaticky do složky podle data.</div>
             <form id="noteForm">
               <div class="vy-section">
-                <div class="vy-title">👷 Kdo dnes kontroluje</div>
+                <div class="vy-title">👷 Kontrolu provádí:</div>
                 <div id="dnesni-jmena-picker"></div>
               </div>
 
@@ -306,6 +323,20 @@
           <section id="view-mapa" class="view">
             <h1 class="view-head">🗺️ Mapa záznamů</h1>
             <div id="map" style="width:100%;height:72vh;border-radius:10px;"></div>
+          </section>
+
+          <!-- NASTAVENÍ -->
+          <section id="view-nastaveni" class="view">
+            <h1 class="view-head">⚙️ Nastavení</h1>
+            <div class="settings-card">
+              <div class="vy-title">👷 Kontrolující osoby</div>
+              <div class="view-sub" style="margin:0 0 0.5rem">Seznam osob, které se nabízí u „Kontrolu provádí".</div>
+              <div id="persons-list"></div>
+              <div class="chip-row" style="margin-top:12px">
+                <input id="person-input" class="num-input" type="text" placeholder="Jméno nové osoby…">
+                <button id="person-add" type="button" class="btn-small">+ Přidat osobu</button>
+              </div>
+            </div>
           </section>
         </main>
       </div>
@@ -583,6 +614,19 @@
         if(view === 'mapa') renderMap();
         if(view === 'office') renderOffice();
         if(view === 'zaznamy') renderFoldersAndEntries();
+        if(view === 'nastaveni') renderSettings();
+      }
+
+      // --- Nastavení: správa kontrolujících osob ---
+      function renderSettings(){
+        const list = document.getElementById('persons-list');
+        const persons = getKnownPersons();
+        list.innerHTML = persons.length
+          ? persons.map(n=>`<div class="person-row"><span>${escapeHtml(n)}</span><button type="button" class="del" data-n="${escAttr(n)}">Odebrat</button></div>`).join('')
+          : '<div class="view-sub" style="margin:0">Zatím žádné osoby.</div>';
+        list.querySelectorAll('.del').forEach(b=> b.addEventListener('click', ()=>{
+          if(confirm(`Odebrat osobu „${b.dataset.n}"?`)){ removeKnownPerson(b.dataset.n); renderSettings(); }
+        }));
       }
 
       // --- Mapa (inline karta) ---
@@ -623,46 +667,55 @@
         'Tomáš Vacula',
         'Jan Dedek, Tomáš Novák, Lukáš Popelka'
       ];
-      // Jednotlivá jména (z kombinací výše) – uživatel je vybírá/přidává jako odznáčky
+      // Jednotlivá jména (výchozí sada z kombinací výše)
       const INDIVIDUAL_NAMES = [...new Set(OFFICE_INSPECTORS.flatMap(s=>s.split(', ')))];
 
-      // Znovupoužitelný výběr jmen (odznáčky + přidání vlastního). onChange dostane pole vybraných.
+      // Správa seznamu kontrolujících osob (localStorage; spravuje se v Nastavení)
+      function getKnownPersons(){
+        const raw = localStorage.getItem('kk_persons');
+        if(raw){ try{ const a = JSON.parse(raw); if(Array.isArray(a)) return a; }catch(e){} }
+        const legacy = JSON.parse(localStorage.getItem('kk_known_jmena')||'[]');
+        const init = [...new Set([...INDIVIDUAL_NAMES, ...legacy])];
+        localStorage.setItem('kk_persons', JSON.stringify(init));
+        return init;
+      }
+      function setKnownPersons(arr){ localStorage.setItem('kk_persons', JSON.stringify(arr)); }
+      function addKnownPerson(n){ const a=getKnownPersons(); if(n && !a.includes(n)){ a.push(n); setKnownPersons(a); } }
+      function removeKnownPerson(n){ setKnownPersons(getKnownPersons().filter(x=>x!==n)); }
+
+      // Znovupoužitelný výběr jmen: sbalený – vybraná jména jako chipy + tlačítko „+".
+      // Po klepnutí na „+" se rozbalí seznam osob k výběru. onChange dostane pole vybraných.
       function buildNamesPicker(container, initialSelected, onChange){
         let selected = (initialSelected||[]).filter(Boolean);
-        const known = ()=>{
-          const stored = JSON.parse(localStorage.getItem('kk_known_jmena')||'[]');
-          return [...new Set([...INDIVIDUAL_NAMES, ...stored, ...selected])];
-        };
+        let open = false;
         const fire = ()=> onChange && onChange(selected.slice());
         function render(){
+          const persons = [...new Set([...getKnownPersons(), ...selected])];
           container.innerHTML =
-            `<div class="chips names-known"></div>
-             <div class="names-selected-label"></div>
-             <div class="chip-row" style="margin-top:6px">
-               <input class="num-input name-input" type="text" placeholder="Přidat další jméno...">
-               <button type="button" class="btn-small name-add">+ Přidat</button>
+            `<div class="names-wrap">
+               <div class="names-selected"></div>
+               <button type="button" class="name-add-btn" title="Přidat osobu" aria-label="Přidat osobu">+</button>
+             </div>
+             <div class="names-pop" ${open?'':'hidden'}>
+               <div class="names-pop-list"></div>
+               <div class="chip-row" style="margin-top:8px">
+                 <input class="num-input name-input" type="text" placeholder="Nové jméno…">
+                 <button type="button" class="btn-small name-new">Přidat</button>
+               </div>
              </div>`;
-          const kw = container.querySelector('.names-known');
-          kw.innerHTML = known().map(n=>`<button type="button" class="name-chip ${selected.includes(n)?'sel':''}" data-n="${escAttr(n)}">${escapeHtml(n)}</button>`).join('');
-          kw.querySelectorAll('.name-chip').forEach(ch=>{
-            ch.addEventListener('click', ()=>{
-              const n = ch.dataset.n;
-              selected = selected.includes(n) ? selected.filter(x=>x!==n) : [...selected, n];
-              render(); fire();
-            });
-          });
-          const lbl = container.querySelector('.names-selected-label');
-          lbl.textContent = selected.length ? ('Vybráno: ' + selected.join(', ')) : 'Nikdo zatím nevybrán';
+          const sel = container.querySelector('.names-selected');
+          sel.innerHTML = selected.length
+            ? selected.map(n=>`<span class="chip name-selchip">${escapeHtml(n)}<button type="button" class="chip-x" data-n="${escAttr(n)}" aria-label="Odebrat">✕</button></span>`).join('')
+            : '<span style="color:var(--muted);font-size:0.88rem">Nikdo nevybrán</span>';
+          sel.querySelectorAll('.chip-x').forEach(x=> x.addEventListener('click', ()=>{ selected=selected.filter(v=>v!==x.dataset.n); render(); fire(); }));
+          container.querySelector('.name-add-btn').addEventListener('click', ()=>{ open=!open; render(); });
+          const list = container.querySelector('.names-pop-list');
+          list.innerHTML = persons.map(n=>`<button type="button" class="name-opt ${selected.includes(n)?'sel':''}" data-n="${escAttr(n)}">${selected.includes(n)?'✓ ':''}${escapeHtml(n)}</button>`).join('') || '<span style="color:var(--muted);font-size:0.85rem">Zatím žádné osoby – přidej níže nebo v Nastavení.</span>';
+          list.querySelectorAll('.name-opt').forEach(o=> o.addEventListener('click', ()=>{ const n=o.dataset.n; selected = selected.includes(n)?selected.filter(x=>x!==n):[...selected,n]; render(); fire(); }));
           const inp = container.querySelector('.name-input');
-          const add = ()=>{
-            const v = inp.value.trim(); if(!v) return;
-            if(!selected.includes(v)) selected.push(v);
-            const stored = JSON.parse(localStorage.getItem('kk_known_jmena')||'[]');
-            if(!INDIVIDUAL_NAMES.includes(v) && !stored.includes(v)){ stored.push(v); localStorage.setItem('kk_known_jmena', JSON.stringify(stored)); }
-            inp.value=''; render(); fire();
-          };
-          container.querySelector('.name-add').addEventListener('click', add);
-          inp.addEventListener('keydown', e=>{ if(e.key==='Enter'){ e.preventDefault(); add(); } });
+          const addNew = ()=>{ const v=inp.value.trim(); if(!v) return; addKnownPerson(v); if(!selected.includes(v)) selected.push(v); inp.value=''; render(); fire(); };
+          container.querySelector('.name-new').addEventListener('click', addNew);
+          inp.addEventListener('keydown', e=>{ if(e.key==='Enter'){ e.preventDefault(); addNew(); } });
         }
         render();
         return { get: ()=> selected.slice() };
@@ -1399,6 +1452,12 @@
           localStorage.setItem('kk_dnesni_jmena', JSON.stringify(sel));
           localStorage.setItem('kk_dnesni_kontroloval', sel.join(', '));
         });
+
+        // Nastavení: přidání kontrolující osoby
+        const personInput = document.getElementById('person-input');
+        const personAddFn = ()=>{ const v=personInput.value.trim(); if(!v) return; addKnownPerson(v); personInput.value=''; renderSettings(); };
+        document.getElementById('person-add').addEventListener('click', personAddFn);
+        personInput.addEventListener('keydown', e=>{ if(e.key==='Enter'){ e.preventDefault(); personAddFn(); } });
 
         // Foto: klepni a vyber (foto nebo galerie) + náhled
         const photoInput = document.getElementById('photo');
