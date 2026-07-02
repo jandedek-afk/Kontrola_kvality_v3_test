@@ -900,6 +900,8 @@
         const fp = document.getElementById('float-photo');
         floatState.pri = pri || ''; floatState.po = po || ''; floatState.tab = 'pri';
         if(!floatState.pri && !floatState.po){ fp.hidden = true; return; }
+        // vrať okno do viditelného rohu (kdyby bylo dřív přetažené mimo obraz)
+        fp.style.left = ''; fp.style.top = ''; fp.style.right = '16px'; fp.style.bottom = '16px';
         fp.hidden = false;
         renderFloatImg();
       }
@@ -1079,6 +1081,23 @@
         if(openPdfBtn) openPdfBtn.addEventListener('click', ()=> openPdf(officePhotos.repairPdf || (entry.office && entry.office.repairPdf)));
       }
 
+      // Nastaví hodnotu radia v office formuláři (+ vizuální označení)
+      function setOfficeRadio(body, key, value){
+        body.querySelectorAll(`input[name="of_${key}"]`).forEach(inp=>{
+          const on = inp.value === value;
+          inp.checked = on;
+          const lbl = inp.closest('label'); if(lbl) lbl.classList.toggle('checked', on);
+        });
+      }
+      // Z textu „Typ záruka" odvodí reklamaci
+      function zarukaToReklamace(z){
+        if(!z) return '';
+        const t = z.trim().toLowerCase();
+        if(t.startsWith('ano')) return 'Záruka byla poskytnuta';
+        if(t.startsWith('ne') || t.includes('bez zár') || t.includes('bez zar')) return 'Záruka nebyla poskytnuta';
+        return '';
+      }
+
       // Otevře uložené PDF (base64) v novém okně
       function openPdf(dataURL){
         if(!dataURL){ alert('PDF není k dispozici.'); return; }
@@ -1145,6 +1164,9 @@
           const oprInp = body.querySelector('[data-key="oprava"]');
           if(idInp) idInp.value = info.id_cev || 'N/A';
           if(oprInp){ const parts=[info.spravce, info.komunikace, info.datum_ukonceni].filter(Boolean); oprInp.value = parts.length ? parts.join(', ') : 'N/A'; }
+          // Reklamace/záruka z PDF: "ANO…" → byla poskytnuta, "NE…"/"Bez záruky" → nebyla
+          const rekl = zarukaToReklamace(info.zaruka);
+          if(rekl) setOfficeRadio(body, 'reklamace', rekl);
           // fotky z PDF
           const imgs = await pdfImages(page);
           const imgWrap = body.querySelector('#pdf-images');
