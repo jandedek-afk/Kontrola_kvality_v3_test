@@ -189,7 +189,7 @@
     .office-actions{margin-top:1.5rem;display:flex;gap:10px;flex-wrap:wrap;align-items:center;padding-top:1rem;border-top:1px solid #eef1f6}
     /* --- Kontrolní výjezd: sekce jako karty --- */
     #noteForm{background:transparent;box-shadow:none;padding:0}
-    .vy-section{background:#fff;padding:1rem 1.1rem;border-radius:12px;box-shadow:0 2px 8px rgba(0,0,0,0.06);margin-bottom:1rem}
+    .vy-section{background:#fff;padding:1rem 1.1rem;border-radius:12px;box-shadow:0 2px 8px rgba(0,0,0,0.06);margin-bottom:1rem;position:relative}
     .vy-section.measure-group{background:#fff;border:none}
     .vy-title{font-weight:700;color:var(--brand);font-size:1.02rem;margin-bottom:0.6rem;display:flex;align-items:center;gap:8px}
     .name-chip{cursor:pointer;background:#fff;border:1px solid #cdddf3;color:#111;border-radius:999px;padding:7px 15px;font-size:0.9rem;font-weight:500}
@@ -288,7 +288,11 @@
               </div>
 
               <div class="vy-section">
-                <div class="vy-title">📷 Fotka</div>
+                <div class="vy-title">
+                  <span>📷 Foto opravy</span>
+                  <button type="button" class="info-btn" id="foto-info-btn" aria-label="Jak fotit opravu" aria-expanded="false">i</button>
+                </div>
+                <div id="foto-info" class="info-box" hidden>Foto opravy se pořizuje z větší vzdálenosti, aby bylo vidět okolí opravy (alespoň 2 m z každé strany).</div>
                 <div class="pdf-drop" id="photo-btn">📷 Klepni a vyfoť</div>
                 <input id="photo" type="file" accept="image/*" capture="environment" style="display:none">
                 <div id="photo-preview" class="photo-preview"></div>
@@ -379,7 +383,7 @@
 
           <footer>
             Aplikace funguje offline. Data jsou uložena lokálně v zařízení (IndexedDB).<br>
-            <span style="color:var(--muted);font-size:0.95em;">Verze aplikace: v3.2.0-test · Build 2026-07-02·5</span>
+            <span style="color:var(--muted);font-size:0.95em;">Verze aplikace: v3.2.0-test · Build 2026-07-02·6</span>
           </footer>
         </main>
       </div>
@@ -1815,22 +1819,25 @@
           });
         });
 
-        // Info k rovinatosti: na PC ukázat při najetí myší (hover), na mobilu po klepnutí na „i"
-        const infoBtn = document.getElementById('rovinatost-info-btn');
-        const infoBox = document.getElementById('rovinatost-info');
-        const showInfo = ()=>{ infoBox.hidden = false; infoBtn.setAttribute('aria-expanded','true'); };
-        const hideInfo = ()=>{ infoBox.hidden = true; infoBtn.setAttribute('aria-expanded','false'); };
-        if(window.matchMedia('(hover: hover)').matches){
-          // zařízení s myší → hover (a focus pro klávesnici)
-          infoBtn.addEventListener('mouseenter', showInfo);
-          infoBtn.addEventListener('mouseleave', hideInfo);
-          infoBtn.addEventListener('focus', showInfo);
-          infoBtn.addEventListener('blur', hideInfo);
-        } else {
-          // dotykové zařízení → klepnutí přepíná, klepnutí mimo zavře
-          infoBtn.addEventListener('click', ()=>{ infoBox.hidden ? showInfo() : hideInfo(); });
-          document.addEventListener('click', e=>{ if(!infoBox.hidden && e.target !== infoBtn && !infoBox.contains(e.target)) hideInfo(); });
+        // Info tlačítka „i": na PC hover, na mobilu klepnutí (klepnutí mimo zavře). Znovupoužitelné.
+        function wireInfo(btnId, boxId){
+          const infoBtn = document.getElementById(btnId);
+          const infoBox = document.getElementById(boxId);
+          if(!infoBtn || !infoBox) return;
+          const showInfo = ()=>{ infoBox.hidden = false; infoBtn.setAttribute('aria-expanded','true'); };
+          const hideInfo = ()=>{ infoBox.hidden = true; infoBtn.setAttribute('aria-expanded','false'); };
+          if(window.matchMedia('(hover: hover)').matches){
+            infoBtn.addEventListener('mouseenter', showInfo);
+            infoBtn.addEventListener('mouseleave', hideInfo);
+            infoBtn.addEventListener('focus', showInfo);
+            infoBtn.addEventListener('blur', hideInfo);
+          } else {
+            infoBtn.addEventListener('click', ()=>{ infoBox.hidden ? showInfo() : hideInfo(); });
+            document.addEventListener('click', e=>{ if(!infoBox.hidden && e.target !== infoBtn && !infoBox.contains(e.target)) hideInfo(); });
+          }
         }
+        wireInfo('rovinatost-info-btn', 'rovinatost-info');
+        wireInfo('foto-info-btn', 'foto-info');
 
         const form = document.getElementById('noteForm');
         const saveBtn = document.getElementById('saveBtn');
