@@ -1667,12 +1667,12 @@
         document.getElementById('update-btn').addEventListener('click', async (e)=>{
           const btn = e.currentTarget; btn.disabled = true; btn.textContent = 'Aktualizuji…';
           try{
-            // 1) smaž veškerou cache appky
+            // a. smaž veškerou cache appky
             if('caches' in window){ const keys = await caches.keys(); await Promise.all(keys.map(k=>caches.delete(k))); }
-            // 2) odregistruj service worker (přestane servírovat starou verzi)
+            // b. odregistruj service worker, přestane servírovat starou verzi
             if('serviceWorker' in navigator){ const regs = await navigator.serviceWorker.getRegistrations(); await Promise.all(regs.map(r=>r.unregister())); }
           }catch(err){ console.warn('update:', err); }
-          // 3) načtení s obejitím cache (unikátní URL) → jistota nejnovější verze
+          // c. načtení s obejitím cache přes unikátní URL → jistota nejnovější verze
           location.replace(location.pathname + '?u=' + Date.now());
         });
         window.addEventListener('online', ()=> syncNow());
