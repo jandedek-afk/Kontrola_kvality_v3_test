@@ -11,8 +11,9 @@
 - Aktuální číslo verze je vidět v patičce aplikace.
 
 ## Projekt
-- **Kontrola kvality – Foto poznámky (v3)** — terénní PWA pro záznamy kontroly kvality: fotka + podélné/příčné měření + poznámka + GPS + datum, se sdílením mezi tabletem (provoz) a počítačem (zpracování).
-- **Tech stack:** čisté HTML/CSS/JS bez frameworku a bez build kroku; vše v jednom `index.html`. Knihovny z CDN: Leaflet 1.9.4 (mapa), `@supabase/supabase-js@2` (přihlášení + cloud). Lokální úložiště: IndexedDB. PWA (service worker + manifest).
+- **Kontrola kvality – Foto poznámky (v3)** — PWA pro kontrolu kvality oprav vozovky, se sdílením mezi tabletem (provoz) a počítačem (zpracování). Dvě fáze: **Kontrolní výjezd** (na silnici: fotka, podélné/příčné měření rovinatosti, vyjetá kolej, poznámka, GPS, datum) a **Office** (v kanceláři: doplnění posouzení kvality = náhrada MS Forms + import PDF „Záznam o opravě").
+- **Rozhraní:** levý postranní panel s kartami — 🚛 Kontrolní výjezd, 🏢 Office, 📁 Záznamy, 🗺️ Mapa, ⚙️ Nastavení; dole synchronizace, e-mail, odhlášení. Tlačítko Zpět (mobil/prohlížeč) je napojené na History API (popstate) — vrací o krok v appce, nevyskakuje ven.
+- **Tech stack:** čisté HTML/CSS/JS bez frameworku a bez build kroku; vše v jednom `index.html`. Knihovny z CDN: Leaflet 1.9.4 (mapa), `@supabase/supabase-js@2` (přihlášení + cloud), **pdf.js 3.11.174 (cdnjs)** pro čtení PDF v Office. Lokální úložiště: IndexedDB. PWA (service worker + manifest).
 - **Cloud:** Supabase (Postgres + Auth), projekt ref `wkqqjladzvelnvwcstok`.
 - **Bez Node/npm** — statický web hostovaný na GitHub Pages.
 
@@ -54,9 +55,17 @@
 - Bez potvrzení nemazat data, neměnit DB schéma ani RLS pravidla.
 - Registrace je otevřená; potvrzování e-mailu je v Supabase pro test vypnuté.
 
-## Aktuální stav
-- **Hotovo:** komprese fotek, přihlášení (otevřená registrace), offline-first ukládání, **funkční obousměrná synchronizace (ověřeno na PC i Androidu)**, mapa, složky, nové logo, service worker „nejdřív síť", fotka v DB. Diagnostický `dbg()` výpis odstraněn (v3.0.8-test).
+## Aktuální stav (v3.2.0-test)
+- **Hotovo (základ):** komprese fotek, přihlášení (otevřená registrace), offline-first ukládání, **funkční obousměrná synchronizace (ověřeno na PC i Androidu)**, mapa, složky, service worker „nejdřív síť", fotka v DB.
+- **Hotovo (v3.2.0-test):**
+  - **Rozhraní s postranním panelem** a kartami (výjezd / office / záznamy / mapa / nastavení); tlačítko Zpět přes History API.
+  - **Kontrolní výjezd:** výběr „Kontrolu provádí" (jména jako odznáčky, sbalené za „+"), foto jedním tlačítkem rovnou z kamery (`capture`), rychlé zadávání rovinatosti (mezera/středník/Enter/blur), sekce **Vyjetá kolej** (ano/ne), poznámka. Složka se tvoří automaticky podle data (RRRR_MM_DD).
+  - **Office část (náhrada MS Forms):** výběr záznamu → import PDF „Záznam o opravě" (pdf.js: text = identifikace opravy, extrakce vložených fotek = foto po opravě) → ~30 posuzovacích polí s podmíněným zobrazením (Troxler/Vývrt) a automatickým verdiktem rovinatosti. Stav office (hotovo/čeká) je vidět v Záznamech i v detailu.
+  - **Nastavení:** správa „Kontrolujících osob" (rozklikávací pole; localStorage `kk_persons`).
+- **Office data zatím jen LOKÁLNĚ** (IndexedDB) — do cloudu se neposílají, protože by to chtělo změnu DB schématu (nový sloupec). Až bude potřeba synchronizovat i office mezi zařízeními, přidat jeden JSON sloupec (po domluvě).
+- **Ověřit naživo:** extrakce fotek z PDF v Office (jediná část neotestovaná lokálně bez prohlížeče).
 - **Next steps:**
   - doimplementovat úklid cloudu (mazat synchronizované řádky → udržet free tier);
-  - založit produkční Supabase projekt + zapnout potvrzování e-mailu;
-  - povýšit v3 do ostrého provozu (nová složka/repo).
+  - (volitelně) cloud sync office dat přes JSON sloupec;
+  - generování PDF protokolu z kompletního záznamu; souhrn/databáze kontrol;
+  - založit produkční Supabase projekt + zapnout potvrzování e-mailu; povýšit v3 do ostrého provozu.
