@@ -1,4 +1,4 @@
-const CACHE_NAME = 'foto-poznamky-cache-v3.2.0-test';
+const CACHE_NAME = 'foto-poznamky-cache-v3.2.0-test-b3';
 const NETWORK_TIMEOUT = 2500; // ms – po této době při pomalé síti naskočí cache
 const urlsToCache = [
   './',
@@ -47,7 +47,8 @@ function networkFirst(request, cache) {
       if (cached) done(cached); // pomalá síť → naskočí cache; síť případně doběhne a cache se aktualizuje
     }, NETWORK_TIMEOUT);
 
-    fetch(request).then(async res => {
+    // cache:'reload' → obejde HTTP cache prohlížeče, vždy revaliduje na síti (čerstvý app shell)
+    fetch(request, { cache: 'reload' }).then(async res => {
       clearTimeout(timer);
       try { await cache.put(request, res.clone()); } catch (e) { /* ignore */ }
       done(res.clone());

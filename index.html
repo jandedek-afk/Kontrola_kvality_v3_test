@@ -411,7 +411,7 @@
 
       <footer>
         Aplikace funguje offline. Data jsou uložena lokálně v zařízení (IndexedDB).<br>
-        <span style="color:var(--muted);font-size:0.95em;">Verze aplikace: v3.2.0-test · Build 2026-07-02·2</span>
+        <span style="color:var(--muted);font-size:0.95em;">Verze aplikace: v3.2.0-test · Build 2026-07-02·3</span>
       </footer>
 
       <script>
@@ -1665,14 +1665,15 @@
         document.getElementById('logout-btn').addEventListener('click', async ()=>{ await sb.auth.signOut(); });
         document.getElementById('sync-now').addEventListener('click', ()=> syncNow());
         document.getElementById('update-btn').addEventListener('click', async (e)=>{
-          const btn = e.currentTarget; btn.disabled = true; const orig = btn.textContent; btn.textContent = 'Aktualizuji…';
+          const btn = e.currentTarget; btn.disabled = true; btn.textContent = 'Aktualizuji…';
           try{
-            if('serviceWorker' in navigator){
-              const reg = await navigator.serviceWorker.getRegistration();
-              if(reg){ await reg.update(); if(reg.waiting) reg.waiting.postMessage({ type:'SKIP_WAITING' }); }
-            }
-          }catch(err){ /* i tak zkusíme reload */ }
-          location.reload();
+            // 1) smaž veškerou cache appky
+            if('caches' in window){ const keys = await caches.keys(); await Promise.all(keys.map(k=>caches.delete(k))); }
+            // 2) odregistruj service worker (přestane servírovat starou verzi)
+            if('serviceWorker' in navigator){ const regs = await navigator.serviceWorker.getRegistrations(); await Promise.all(regs.map(r=>r.unregister())); }
+          }catch(err){ console.warn('update:', err); }
+          // 3) načtení s obejitím cache (unikátní URL) → jistota nejnovější verze
+          location.replace(location.pathname + '?u=' + Date.now());
         });
         window.addEventListener('online', ()=> syncNow());
         window.addEventListener('offline', ()=> setSyncStatus('● offline'));
