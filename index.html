@@ -190,6 +190,8 @@
     .name-chip:hover{background:#f4f8fe;opacity:1}
     .name-chip.sel{background:var(--brand);color:#fff;border-color:var(--brand)}
     .photo-preview img{width:100%;max-width:280px;height:auto;border-radius:8px;border:1px solid #e6eef9;margin-top:10px}
+    .toggle-yn{display:flex;align-items:center;gap:10px;font-size:0.95rem;color:#333;cursor:pointer;font-weight:500}
+    .toggle-yn input{width:22px;height:22px;accent-color:var(--brand);cursor:pointer}
     /* --- Výběr jmen (sbalený: chipy + tlačítko +) --- */
     .names-wrap{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
     .names-selected{display:flex;gap:6px;flex-wrap:wrap;align-items:center}
@@ -264,12 +266,8 @@
 
               <div class="vy-section">
                 <div class="vy-title">📷 Fotka</div>
-                <div style="display:flex;gap:10px;flex-wrap:wrap">
-                  <button type="button" class="btn-small" id="photo-cam-btn" style="background:var(--brand);color:#fff">📷 Vyfotit</button>
-                  <button type="button" class="btn-small" id="photo-gal-btn">🖼️ Z galerie</button>
-                </div>
-                <input id="photoCam" type="file" accept="image/*" capture="environment" style="display:none">
-                <input id="photo" type="file" accept="image/*" style="display:none">
+                <div class="pdf-drop" id="photo-btn">📷 Klepni a vyfoť</div>
+                <input id="photo" type="file" accept="image/*" capture="environment" style="display:none">
                 <div id="photo-preview" class="photo-preview"></div>
               </div>
 
@@ -292,6 +290,11 @@
                 </div>
                 <div id="cross-chips" class="chips"></div>
                 <div id="rovinatost-verdict" class="verdict-box"></div>
+              </div>
+
+              <div class="vy-section">
+                <div class="vy-title">🛞 Vyjetá kolej</div>
+                <label class="toggle-yn"><input type="checkbox" id="vyjetaKolej"> <span>Vyjetá kolej je přítomná</span></label>
               </div>
 
               <div class="vy-section">
@@ -1151,7 +1154,7 @@
         return canvas.toDataURL('image/jpeg', 0.8);
       }
 
-      async function saveEntry(photoFile, longNote, crossNote, note, folderName){
+      async function saveEntry(photoFile, longNote, crossNote, note, folderName, vyjetaKolej){
         const coords = await (async ()=>{
           if(!('geolocation' in navigator)) return null;
           return new Promise(res=> navigator.geolocation.getCurrentPosition(p=>res({lat:p.coords.latitude.toFixed(6), lon:p.coords.longitude.toFixed(6)}), ()=>res(null), {enableHighAccuracy:true, timeout:8000}));
@@ -1161,7 +1164,7 @@
         // Když uživatel nezadá složku, ulož pod dnešní datum (RRRR_MM_DD) místo „Bez složky"
         const folder = (folderName && folderName.trim()) ? folderName.trim() : dateFolderName(now);
         const inspectors = localStorage.getItem('kk_dnesni_kontroloval') || '';
-        const entry = { id:String(now), time:now, timeText:formatDate(now), coords, longNote, crossNote, note, photo:photoData, folder, inspectors, synced:false };
+        const entry = { id:String(now), time:now, timeText:formatDate(now), coords, longNote, crossNote, note, photo:photoData, folder, inspectors, vyjetaKolej: !!vyjetaKolej, synced:false };
         await addEntry(entry);
         // Pokus o okamžité nahrání do cloudu (offline-safe: když selže, zůstane k synchronizaci)
         if(navigator.onLine){ pushEntry(entry).then(ok=> setSyncStatus(ok ? '✓ uloženo do cloudu' : '⏳ uloženo lokálně, čeká na sync')); }
@@ -1272,6 +1275,7 @@
                 if (e.crossNote) notesHtml += `<p><strong>↔️ Příčné měření:</strong> ${escapeHtml(e.crossNote)}</p>`;
                 const rovBadge = rovinatostBadge(e.longNote, e.crossNote);
                 if (rovBadge) notesHtml += `<p><strong>📐 Rovinatost:</strong> ${rovBadge}</p>`;
+                if (e.vyjetaKolej) notesHtml += `<p><strong>🛞 Vyjetá kolej:</strong> Ano</p>`;
                 if (e.note) notesHtml += `<p><strong>📝 Poznámka:</strong> ${escapeHtml(e.note)}</p>`;
                 const syncBadge = e.synced ? '' : '<span class="badge-unsynced">⏳ nesynch.</span>';
                 const officeBadge = `<span class="status-pill ${e.officeDone?'done':'wait'}" style="margin-left:6px">${e.officeDone?'✓ office':'⏳ office'}</span>`;
@@ -1345,6 +1349,7 @@
           ${entry.longNote?`<div class="field"><strong>📏 Podélné měření</strong><div class="field-value">${escapeHtml(entry.longNote)}</div></div>`:''}
           ${entry.crossNote?`<div class="field"><strong>↔️ Příčné měření</strong><div class="field-value">${escapeHtml(entry.crossNote)}</div></div>`:''}
           ${rovBadge?`<div class="field"><strong>📐 Rovinatost</strong><div class="field-value">${rovBadge}</div></div>`:''}
+          <div class="field"><strong>🛞 Vyjetá kolej</strong><div class="field-value">${entry.vyjetaKolej?'Ano':'Ne'}</div></div>
           ${entry.note?`<div class="field"><strong>📝 Poznámka</strong><div class="field-value">${escapeHtml(entry.note)}</div></div>`:''}
           ${entry.afterPhoto?`<div class="field"><strong>📷 Foto po opravě</strong><img src="${entry.afterPhoto}" alt="Foto po opravě"></div>`:''}
           ${officeSummaryHtml(entry)}
@@ -1510,19 +1515,18 @@
         document.getElementById('person-add').addEventListener('click', personAddFn);
         personInput.addEventListener('keydown', e=>{ if(e.key==='Enter'){ e.preventDefault(); personAddFn(); } });
 
-        // Foto: Vyfotit (kamera) nebo Z galerie – oba vstupy plní stejný vybraný soubor
+        // Foto: jedno tlačítko → rovnou kamera (capture)
         let selectedPhotoFile = null;
-        const photoCam = document.getElementById('photoCam');
-        const photoGal = document.getElementById('photo');
-        const showPhotoPreview = (f)=>{
+        const photoInput = document.getElementById('photo');
+        const photoBtn = document.getElementById('photo-btn');
+        photoBtn.addEventListener('click', ()=> photoInput.click());
+        photoInput.addEventListener('change', ()=>{
+          const f = photoInput.files && photoInput.files[0];
           selectedPhotoFile = f || null;
           const prev = document.getElementById('photo-preview');
           prev.innerHTML = f ? `<img src="${URL.createObjectURL(f)}" alt="náhled">` : '';
-        };
-        document.getElementById('photo-cam-btn').addEventListener('click', ()=> photoCam.click());
-        document.getElementById('photo-gal-btn').addEventListener('click', ()=> photoGal.click());
-        photoCam.addEventListener('change', ()=> showPhotoPreview(photoCam.files && photoCam.files[0]));
-        photoGal.addEventListener('change', ()=> showPhotoPreview(photoGal.files && photoGal.files[0]));
+          photoBtn.textContent = f ? '📷 Vyfoceno – klepni pro nové foto' : '📷 Klepni a vyfoť';
+        });
         // --- Rovinatost: zadávání hodnot jako odznáčky (chips) ---
         const measureState = { long: [], cross: [] };
         const valInput = (t)=> document.getElementById(t==='long' ? 'longNote' : 'crossNote');
@@ -1600,9 +1604,12 @@
             const longNote=measureState.long.join('; ');
             const crossNote=measureState.cross.join('; ');
             const note=document.getElementById('noteField').value.trim();
-            await saveEntry(selectedPhotoFile, longNote, crossNote, note, ''); // složka = automaticky podle data
+            const vyjetaKolej=document.getElementById('vyjetaKolej').checked;
+            await saveEntry(selectedPhotoFile, longNote, crossNote, note, '', vyjetaKolej); // složka = automaticky podle data
             selectedPhotoFile = null;
-            photoCam.value=''; photoGal.value='';
+            photoInput.value='';
+            photoBtn.textContent = '📷 Klepni a vyfoť';
+            document.getElementById('vyjetaKolej').checked=false;
             document.getElementById('photo-preview').innerHTML='';
             document.getElementById('longNote').value='';
             document.getElementById('crossNote').value='';
