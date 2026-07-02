@@ -181,6 +181,16 @@
     .pick-thumb img{width:100%;height:70px;object-fit:cover;border-radius:6px}
     .conditional[hidden]{display:none}
     .office-actions{margin-top:1.5rem;display:flex;gap:10px;flex-wrap:wrap;align-items:center;padding-top:1rem;border-top:1px solid #eef1f6}
+    /* --- Kontrolní výjezd: sekce jako karty --- */
+    #noteForm{background:transparent;box-shadow:none;padding:0}
+    .vy-section{background:#fff;padding:1rem 1.1rem;border-radius:12px;box-shadow:0 2px 8px rgba(0,0,0,0.06);margin-bottom:1rem}
+    .vy-section.measure-group{background:#f4f8fe}
+    .vy-title{font-weight:700;color:var(--brand);font-size:1.02rem;margin-bottom:0.6rem;display:flex;align-items:center;gap:8px}
+    .name-chip{cursor:pointer;background:#fff;border:1px solid #cdddf3;color:#111;border-radius:999px;padding:7px 15px;font-size:0.9rem;font-weight:500}
+    .name-chip:hover{background:#f4f8fe;opacity:1}
+    .name-chip.sel{background:var(--brand);color:#fff;border-color:var(--brand)}
+    .names-selected-label{font-size:0.82rem;color:var(--muted);margin:8px 0 2px}
+    .photo-preview img{width:100%;max-width:280px;height:auto;border-radius:8px;border:1px solid #e6eef9;margin-top:10px}
   </style>
 </head>
 <body>
@@ -204,7 +214,7 @@
             <span class="name">Kontrola kvality</span>
           </div>
           <nav class="sidebar-nav">
-            <button type="button" class="nav-item active" data-view="vyjezd"><span class="ico">🔧</span> Kontrolní výjezd</button>
+            <button type="button" class="nav-item active" data-view="vyjezd"><span class="ico">🚛</span> Kontrolní výjezd</button>
             <button type="button" class="nav-item" data-view="zaznamy"><span class="ico">📁</span> Záznamy</button>
             <button type="button" class="nav-item" data-view="office"><span class="ico">🏢</span> Office – kontrola</button>
             <button type="button" class="nav-item" data-view="mapa"><span class="ico">🗺️</span> Mapa</button>
@@ -223,18 +233,24 @@
 
           <!-- KONTROLNÍ VÝJEZD -->
           <section id="view-vyjezd" class="view active">
-            <h1 class="view-head">🔧 Kontrolní výjezd</h1>
-            <div class="view-sub">Terénní záznam: fotka + podélné &amp; příčné měření + poznámka + GPS + datum</div>
+            <h1 class="view-head">🚛🔍 Kontrolní výjezd</h1>
+            <div class="view-sub">Terénní záznam: fotka + podélné &amp; příčné měření + poznámka + GPS. Ukládá se automaticky do složky podle data.</div>
             <form id="noteForm">
-              <label>Kdo dnes kontroluje (výjezd)</label>
-              <select id="dnesniKontroloval" style="width:100%;padding:10px;border-radius:8px;border:1px solid #e0e0e0;font-family:inherit;font-size:0.93rem;margin-top:6px;background:#fff">
-                <option value="">— vyber obsazení (předvyplní se do office) —</option>
-              </select>
-              <label style="margin-top:1rem">Fotka (foto nebo galerie)</label>
-              <input id="photo" type="file" accept="image/*" capture="camera">
-              <div class="measure-group">
-                <div class="form-section">
-                  <span>Rovinatost [mm]</span>
+              <div class="vy-section">
+                <div class="vy-title">👷 Kdo dnes kontroluje</div>
+                <div id="dnesni-jmena-picker"></div>
+              </div>
+
+              <div class="vy-section">
+                <div class="vy-title">📷 Fotka (foto nebo galerie)</div>
+                <div class="pdf-drop" id="photo-drop">📷 Klepni a vyber (foto nebo galerie)</div>
+                <input id="photo" type="file" accept="image/*" style="display:none">
+                <div id="photo-preview" class="photo-preview"></div>
+              </div>
+
+              <div class="vy-section measure-group">
+                <div class="vy-title">
+                  <span>📐 Rovinatost [mm]</span>
                   <button type="button" class="info-btn" id="rovinatost-info-btn" aria-label="Co znamená rovinatost" aria-expanded="false">i</button>
                 </div>
                 <div id="rovinatost-info" class="info-box" hidden>Rovinatost se měří 2m latí. Vyhovující = aspoň 75 % naměřených hodnot je do 10 mm.</div>
@@ -252,10 +268,12 @@
                 <div id="cross-chips" class="chips"></div>
                 <div id="rovinatost-verdict" class="verdict-box"></div>
               </div>
-              <label>Poznámka</label>
-              <textarea id="noteField" placeholder="Doplňující poznámka..."></textarea>
-              <label>Složka</label>
-              <input id="folderName" placeholder="Název složky (prázdné = dnešní datum)..." style="width: 100%; padding: 10px; border-radius: 8px; border: 1px solid #e0e0e0; font-family: inherit; font-size: 0.95rem; margin-top: 6px;">
+
+              <div class="vy-section">
+                <div class="vy-title">📝 Poznámka</div>
+                <textarea id="noteField" placeholder="Doplňující poznámka..." style="margin-top:0"></textarea>
+              </div>
+
               <div class="form-actions">
                 <button id="saveBtn" type="submit">Uložit záznam</button>
                 <div id="status"></div>
@@ -605,13 +623,57 @@
         'Tomáš Vacula',
         'Jan Dedek, Tomáš Novák, Lukáš Popelka'
       ];
+      // Jednotlivá jména (z kombinací výše) – uživatel je vybírá/přidává jako odznáčky
+      const INDIVIDUAL_NAMES = [...new Set(OFFICE_INSPECTORS.flatMap(s=>s.split(', ')))];
+
+      // Znovupoužitelný výběr jmen (odznáčky + přidání vlastního). onChange dostane pole vybraných.
+      function buildNamesPicker(container, initialSelected, onChange){
+        let selected = (initialSelected||[]).filter(Boolean);
+        const known = ()=>{
+          const stored = JSON.parse(localStorage.getItem('kk_known_jmena')||'[]');
+          return [...new Set([...INDIVIDUAL_NAMES, ...stored, ...selected])];
+        };
+        const fire = ()=> onChange && onChange(selected.slice());
+        function render(){
+          container.innerHTML =
+            `<div class="chips names-known"></div>
+             <div class="names-selected-label"></div>
+             <div class="chip-row" style="margin-top:6px">
+               <input class="num-input name-input" type="text" placeholder="Přidat další jméno...">
+               <button type="button" class="btn-small name-add">+ Přidat</button>
+             </div>`;
+          const kw = container.querySelector('.names-known');
+          kw.innerHTML = known().map(n=>`<button type="button" class="name-chip ${selected.includes(n)?'sel':''}" data-n="${escAttr(n)}">${escapeHtml(n)}</button>`).join('');
+          kw.querySelectorAll('.name-chip').forEach(ch=>{
+            ch.addEventListener('click', ()=>{
+              const n = ch.dataset.n;
+              selected = selected.includes(n) ? selected.filter(x=>x!==n) : [...selected, n];
+              render(); fire();
+            });
+          });
+          const lbl = container.querySelector('.names-selected-label');
+          lbl.textContent = selected.length ? ('Vybráno: ' + selected.join(', ')) : 'Nikdo zatím nevybrán';
+          const inp = container.querySelector('.name-input');
+          const add = ()=>{
+            const v = inp.value.trim(); if(!v) return;
+            if(!selected.includes(v)) selected.push(v);
+            const stored = JSON.parse(localStorage.getItem('kk_known_jmena')||'[]');
+            if(!INDIVIDUAL_NAMES.includes(v) && !stored.includes(v)){ stored.push(v); localStorage.setItem('kk_known_jmena', JSON.stringify(stored)); }
+            inp.value=''; render(); fire();
+          };
+          container.querySelector('.name-add').addEventListener('click', add);
+          inp.addEventListener('keydown', e=>{ if(e.key==='Enter'){ e.preventDefault(); add(); } });
+        }
+        render();
+        return { get: ()=> selected.slice() };
+      }
 
       // Definice office formuláře (sekce → pole). Odpovídá MS Forms „Kontrola kvality FUTTEC".
       const OFFICE_SCHEMA = [
         { title: 'Identifikace opravy', fields: [
           { key:'id_cev', label:'ID opravy / ID CEV', type:'text' },
           { key:'oprava', label:'Oprava (správce, komunikace, datum a čas ukončení)', type:'text' },
-          { key:'kontrolu_provedl', label:'Kontrolu provedl', type:'radio', options:OFFICE_INSPECTORS },
+          { key:'kontrolu_provedl', label:'Kontrolu provedl', type:'names' },
           { key:'datum_kontroly', label:'Datum kontroly', type:'date' },
         ]},
         { title: 'Vizuální posouzení opravy', fields: [
@@ -695,6 +757,8 @@
           inner = `<textarea data-key="${f.key}">${escapeHtml(val||'')}</textarea>`;
         } else if(f.type === 'date'){
           inner = `<input type="date" data-key="${f.key}" value="${escAttr(val||'')}">`;
+        } else if(f.type === 'names'){
+          inner = `<div class="office-names" data-names-key="${f.key}"></div><input type="hidden" data-key="${f.key}" value="${escAttr(val||'')}">`;
         } else if(f.type === 'photo'){
           const src = officePhotos[f.key] || val || '';
           inner = `<input type="file" accept="image/*" data-photo-key="${f.key}">
@@ -713,7 +777,7 @@
         const o = entry.office || {};
         // předvyplnění: dnešní kontrolóři + dnešní datum, pokud ještě nevyplněno
         const defaults = {
-          kontrolu_provedl: o.kontrolu_provedl || localStorage.getItem('kk_dnesni_kontroloval') || '',
+          kontrolu_provedl: o.kontrolu_provedl || entry.inspectors || localStorage.getItem('kk_dnesni_kontroloval') || '',
           datum_kontroly: o.datum_kontroly || todayISODate(),
         };
         const rovBadge = rovinatostBadge(entry.longNote, entry.crossNote) || '<span class="verdict">nezměřeno</span>';
@@ -795,6 +859,14 @@
             const prev = body.querySelector(`[data-photo-preview="${key}"]`);
             if(prev) prev.innerHTML = `<div class="of-photo"><img src="${officePhotos[key]}"></div>`;
           });
+        });
+
+        // výběr jmen (Kontrolu provedl)
+        body.querySelectorAll('.office-names').forEach(c=>{
+          const key = c.dataset.namesKey;
+          const hidden = body.querySelector(`input[type=hidden][data-key="${key}"]`);
+          const init = (hidden.value||'').split(', ').map(s=>s.trim()).filter(Boolean);
+          buildNamesPicker(c, init, sel=>{ hidden.value = sel.join(', '); });
         });
 
         // import PDF
@@ -998,7 +1070,8 @@
         const now = Date.now();
         // Když uživatel nezadá složku, ulož pod dnešní datum (RRRR_MM_DD) místo „Bez složky"
         const folder = (folderName && folderName.trim()) ? folderName.trim() : dateFolderName(now);
-        const entry = { id:String(now), time:now, timeText:formatDate(now), coords, longNote, crossNote, note, photo:photoData, folder, synced:false };
+        const inspectors = localStorage.getItem('kk_dnesni_kontroloval') || '';
+        const entry = { id:String(now), time:now, timeText:formatDate(now), coords, longNote, crossNote, note, photo:photoData, folder, inspectors, synced:false };
         await addEntry(entry);
         // Pokus o okamžité nahrání do cloudu (offline-safe: když selže, zůstane k synchronizaci)
         if(navigator.onLine){ pushEntry(entry).then(ok=> setSyncStatus(ok ? '✓ uloženo do cloudu' : '⏳ uloženo lokálně, čeká na sync')); }
@@ -1320,11 +1393,23 @@
 
         document.getElementById('backToFoldersBtn').addEventListener('click', () => renderFoldersAndEntries());
 
-        // Dnešní kontrolóři (uloží se pro předvyplnění office části)
-        const dnesniSel = document.getElementById('dnesniKontroloval');
-        OFFICE_INSPECTORS.forEach(name=>{ const opt=document.createElement('option'); opt.value=name; opt.textContent=name; dnesniSel.appendChild(opt); });
-        dnesniSel.value = localStorage.getItem('kk_dnesni_kontroloval') || '';
-        dnesniSel.addEventListener('change', ()=>{ localStorage.setItem('kk_dnesni_kontroloval', dnesniSel.value); });
+        // Dnešní kontrolóři – výběr jednotlivých jmen (uloží se pro předvyplnění office části)
+        const savedNames = JSON.parse(localStorage.getItem('kk_dnesni_jmena')||'[]');
+        buildNamesPicker(document.getElementById('dnesni-jmena-picker'), savedNames, sel=>{
+          localStorage.setItem('kk_dnesni_jmena', JSON.stringify(sel));
+          localStorage.setItem('kk_dnesni_kontroloval', sel.join(', '));
+        });
+
+        // Foto: klepni a vyber (foto nebo galerie) + náhled
+        const photoInput = document.getElementById('photo');
+        const photoDrop = document.getElementById('photo-drop');
+        photoDrop.addEventListener('click', ()=> photoInput.click());
+        photoInput.addEventListener('change', ()=>{
+          const f = photoInput.files && photoInput.files[0];
+          const prev = document.getElementById('photo-preview');
+          if(f){ prev.innerHTML = `<img src="${URL.createObjectURL(f)}" alt="náhled">`; photoDrop.textContent = '📷 Fotka vybrána – klepni pro změnu'; }
+          else { prev.innerHTML=''; photoDrop.textContent = '📷 Klepni a vyber (foto nebo galerie)'; }
+        });
         // --- Rovinatost: zadávání hodnot jako odznáčky (chips) ---
         const measureState = { long: [], cross: [] };
         const valInput = (t)=> document.getElementById(t==='long' ? 'longNote' : 'crossNote');
@@ -1385,17 +1470,17 @@
             addValue('long'); addValue('cross'); // dotáhni nezapsané číslo z políčka
             const longNote=measureState.long.join('; ');
             const crossNote=measureState.cross.join('; ');
-            const note=document.getElementById('noteField').value.trim(); 
-            const folderName = document.getElementById('folderName').value.trim();
-            await saveEntry(fileInput.files[0], longNote, crossNote, note, folderName); 
-            fileInput.value=''; 
+            const note=document.getElementById('noteField').value.trim();
+            await saveEntry(fileInput.files[0], longNote, crossNote, note, ''); // složka = automaticky podle data
+            fileInput.value='';
+            document.getElementById('photo-preview').innerHTML='';
+            photoDrop.textContent = '📷 Klepni a vyber (foto nebo galerie)';
             document.getElementById('longNote').value='';
             document.getElementById('crossNote').value='';
             measureState.long=[]; measureState.cross=[]; renderChips('long'); renderChips('cross');
-            document.getElementById('noteField').value=''; 
-            document.getElementById('folderName').value='';
-            await renderFoldersAndEntries(); 
-            alert('Záznam uložen.'); 
+            document.getElementById('noteField').value='';
+            await renderFoldersAndEntries();
+            alert('Záznam uložen.');
         });
 
         document.getElementById('clearAll').addEventListener('click', async ()=>{ if(confirm('Opravdu vymazat všechna data?')){ const tx=db.transaction([STORE_NAME],'readwrite'); tx.objectStore(STORE_NAME).clear(); tx.oncomplete = async ()=>{ await renderFoldersAndEntries(); }; }});
