@@ -134,7 +134,8 @@
     .sidebar-foot .sync-state{color:var(--muted);font-size:0.8rem;min-height:1em}
     .sidebar-backdrop{display:none;position:fixed;inset:0;background:rgba(0,0,0,0.4);z-index:900}
     .sidebar.open ~ .sidebar-backdrop{display:block}
-    .main{flex:1;max-width:1200px;width:100%;margin:0 auto;padding:64px 1.5rem 3rem}
+    .main{flex:1;max-width:1200px;width:100%;margin:0 auto;padding:64px 1.5rem 3rem;display:flex;flex-direction:column;min-height:100vh}
+    .main > footer{margin-top:auto}
     /* Plovoucí tlačítko menu (tři čárky) – stále na obrazovce (i při scrollování) */
     .menu-toggle{position:fixed;top:10px;left:10px;z-index:999;display:inline-flex;align-items:center;justify-content:center;background:var(--brand);color:#fff;border:none;width:44px;height:44px;border-radius:8px;font-size:20px;box-shadow:0 2px 10px rgba(0,0,0,0.25);cursor:pointer}
     .view{display:none}
@@ -378,7 +379,7 @@
 
           <footer>
             Aplikace funguje offline. Data jsou uložena lokálně v zařízení (IndexedDB).<br>
-            <span style="color:var(--muted);font-size:0.95em;">Verze aplikace: v3.2.0-test · Build 2026-07-02·4</span>
+            <span style="color:var(--muted);font-size:0.95em;">Verze aplikace: v3.2.0-test · Build 2026-07-02·5</span>
           </footer>
         </main>
       </div>
