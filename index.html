@@ -178,6 +178,12 @@
     .pick-thumb{width:96px;cursor:pointer;border:2px solid transparent;border-radius:8px;padding:2px}
     .pick-thumb.sel{border-color:var(--brand)}
     .pick-thumb img{width:100%;height:70px;object-fit:cover;border-radius:6px}
+    /* Karty nahraných oprav (více PDF u jednoho záznamu) */
+    .repair-card{border:1px solid #dbe7f7;border-radius:10px;padding:10px;margin-top:8px;background:#fff}
+    .repair-card .rc-head{display:flex;align-items:center;gap:8px;flex-wrap:wrap;font-size:0.85rem;font-weight:600;color:#33506f}
+    .repair-card .rc-latest{background:var(--brand);color:#fff;border-radius:999px;padding:2px 8px;font-size:0.72rem;font-weight:600}
+    .repair-card .rc-actions{margin-left:auto;display:flex;gap:6px}
+    .repair-card .rc-thumbs{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px}
     .conditional[hidden]{display:none}
     /* Dvě fotky vedle sebe (na úzké obrazovce pod sebou) */
     .photos-compare{display:flex;gap:16px;flex-wrap:wrap;margin-top:8px}
@@ -385,7 +391,7 @@
 
           <footer>
             Aplikace funguje offline. Data jsou uložena lokálně v zařízení (IndexedDB).<br>
-            <span style="color:var(--muted);font-size:0.95em;">Verze aplikace: v3.2.0-test · Build 2026-07-14·10</span>
+            <span style="color:var(--muted);font-size:0.95em;">Verze aplikace: v3.2.0-test · Build 2026-07-14·11</span>
           </footer>
         </main>
       </div>
@@ -991,6 +997,16 @@
         const entry = entries.find(e=>e.id===officeCurrentId);
         if(!entry){ officeCurrentId=null; return renderOffice(); }
         const o = entry.office || {};
+        // více oprav: seed z uložených dat (zpětná kompatibilita se starým jedním PDF)
+        if(!officePhotos.repairs){
+          if(Array.isArray(o.repairs) && o.repairs.length){
+            officePhotos.repairs = o.repairs.map(r=>({ ...r }));
+          } else if(o.repairPdf || entry.afterPhoto){
+            officePhotos.repairs = [{ pdf:o.repairPdf||'', afterPhoto: entry.afterPhoto||'', id_cev:o.id_cev||'', spravce:'', komunikace:'', datum_ukonceni:'', zaruka:'' }];
+          } else {
+            officePhotos.repairs = [];
+          }
+        }
         // předvyplnění: dnešní kontrolóři + dnešní datum, pokud ještě nevyplněno
         const defaults = {
           kontrolu_provedl: o.kontrolu_provedl || entry.inspectors || localStorage.getItem('kk_dnesni_kontroloval') || '',
@@ -1015,12 +1031,11 @@
 
             <div class="office-section" style="margin-top:0;padding-top:0;border-top:none">Import ze „Záznamu o opravě" (PDF)</div>
             <div class="of-field">
-              <label>Nahraj PDF „Záznam o opravě"<span class="hint">Vytáhne identifikaci opravy a fotku po opravě.</span></label>
-              <div class="pdf-drop" id="pdf-drop">📄 Klepni a vyber PDF (nebo přetáhni sem)</div>
-              <input type="file" id="pdf-input" accept="application/pdf" style="display:none">
-              <div id="pdf-status" class="hint" style="margin-top:6px">${(o.repairPdf)?'✓ PDF „Záznam o opravě" je uložené.':''}</div>
-              <button type="button" class="btn-small" id="open-pdf" style="margin-top:6px;display:${o.repairPdf?'':'none'}">📄 Otevřít uložené PDF</button>
-              <div id="pdf-images" class="of-photo-row"></div>
+              <label>Nahraj PDF „Záznam o opravě"<span class="hint">Můžeš přidat i víc PDF (dvě opravy vedle sebe). Identifikace se vyplní z opravy s nejpozdějším datem ukončení; všechna PDF i fotky po opravě zůstanou uložené.</span></label>
+              <div class="pdf-drop" id="pdf-drop">📄 Klepni a přidej PDF (nebo přetáhni sem)</div>
+              <input type="file" id="pdf-input" accept="application/pdf" multiple style="display:none">
+              <div id="pdf-status" class="hint" style="margin-top:6px"></div>
+              <div id="repairs-list"></div>
             </div>
             <div class="office-section">Fotky</div>
             <div class="photos-compare">
@@ -1051,6 +1066,7 @@
           </div>`;
 
         wireOfficeForm(body, entry);
+        renderRepairs(body, entry, false); // vykresli nahrané opravy (bez přepisu už uložené identifikace)
         showFloatPhoto(entry.photo, entry.afterPhoto); // plovoucí foto (při kontrole + po opravě) pro vizuální posouzení
       }
 
@@ -1097,14 +1113,12 @@
         pdfDrop.addEventListener('click', ()=> pdfInput.click());
         pdfDrop.addEventListener('dragover', e=>{ e.preventDefault(); pdfDrop.style.background='#e3eefc'; });
         pdfDrop.addEventListener('dragleave', ()=>{ pdfDrop.style.background=''; });
-        pdfDrop.addEventListener('drop', e=>{ e.preventDefault(); pdfDrop.style.background=''; if(e.dataTransfer.files[0]) importRepairPdf(e.dataTransfer.files[0], body); });
-        pdfInput.addEventListener('change', ()=>{ if(pdfInput.files[0]) importRepairPdf(pdfInput.files[0], body); });
+        pdfDrop.addEventListener('drop', async e=>{ e.preventDefault(); pdfDrop.style.background=''; for(const f of e.dataTransfer.files){ if(f.type==='application/pdf') await importRepairPdf(f, body, entry); } });
+        pdfInput.addEventListener('change', async ()=>{ for(const f of pdfInput.files){ await importRepairPdf(f, body, entry); } pdfInput.value=''; });
 
         body.querySelector('#office-back').addEventListener('click', ()=> history.back());
         body.querySelector('#office-cancel').addEventListener('click', ()=> history.back());
         body.querySelector('#office-save').addEventListener('click', ()=> saveOffice(body, entry));
-        const openPdfBtn = body.querySelector('#open-pdf');
-        if(openPdfBtn) openPdfBtn.addEventListener('click', ()=> openPdf(officePhotos.repairPdf || (entry.office && entry.office.repairPdf)));
       }
 
       // Nastaví hodnotu radia v office formuláři (+ vizuální označení)
@@ -1148,7 +1162,12 @@
         // fotky
         for(const k of Object.keys(officePhotos)){
           if(k === 'afterPhoto') entry.afterPhoto = officePhotos[k];
+          else if(k === 'repairs') continue; // uloženo níže bez dočasných náhledů
           else { entry.office[k] = officePhotos[k]; }
+        }
+        // více oprav: ulož jen trvalá data (bez _images/_afterIdx)
+        if(Array.isArray(officePhotos.repairs)){
+          entry.office.repairs = officePhotos.repairs.map(r=>({ pdf:r.pdf||'', afterPhoto:r.afterPhoto||'', id_cev:r.id_cev||'', spravce:r.spravce||'', komunikace:r.komunikace||'', datum_ukonceni:r.datum_ukonceni||'', zaruka:r.zaruka||'' }));
         }
         // automatický verdikt rovinatosti z terénního měření
         entry.office.rovinatost_verdikt = rovinatostVerdiktText(entry.longNote, entry.crossNote);
@@ -1170,57 +1189,107 @@
         return (ok/vals.length) >= 0.75 ? 'vyhovující (do 10 mm - 75 % výsledků)' : 'nevyhovující (nad 10 mm - více než 25 % výsledků)';
       }
 
-      // --- Parsování PDF „Záznam o opravě" (text + fotky) ---
-      async function importRepairPdf(file, body){
+      // --- Parsování PDF „Záznam o opravě" (text + fotky) → přidá jednu opravu do seznamu ---
+      async function importRepairPdf(file, body, entry){
         const status = body.querySelector('#pdf-status');
         status.textContent = 'Načítám PDF…';
         try{
           if(!window.pdfjsLib){ status.textContent = '✕ Knihovna pdf.js se nenačetla (offline?).'; return; }
           pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
           const buf = await file.arrayBuffer();
-          // ulož samotné PDF k záznamu (= dokumentace „Záznam o opravě")
-          officePhotos.repairPdf = await fileToBase64(file);
+          const pdfB64 = await fileToBase64(file); // samotné PDF = dokumentace „Záznam o opravě"
           const pdf = await pdfjsLib.getDocument({ data: buf }).promise;
           const page = await pdf.getPage(1);
           // Dvousloupcové rozložení: čti levý a pravý sloupec zvlášť, ať se hodnoty nepletou (např. Teplota k ID)
           const [colL, colR] = await pdfColumns(page);
           const info = mergeInfo(parseRepairText(colL), parseRepairText(colR));
-          // předvyplň identifikaci (chybějící ID → N/A)
-          const idInp = body.querySelector('[data-key="id_cev"]');
-          const oprInp = body.querySelector('[data-key="oprava"]');
-          if(idInp) idInp.value = info.id_cev || 'N/A';
-          if(oprInp){ const parts=[info.spravce, info.komunikace, info.datum_ukonceni].filter(Boolean); oprInp.value = parts.length ? parts.join(', ') : 'N/A'; }
-          // Reklamace/záruka z PDF: "ANO…" → byla poskytnuta, "NE…"/"Bez záruky" → nebyla
-          const rekl = zarukaToReklamace(info.zaruka);
-          if(rekl) setOfficeRadio(body, 'reklamace', rekl);
-          // fotky z PDF
           const imgs = await pdfImages(page);
-          const imgWrap = body.querySelector('#pdf-images');
-          imgWrap.innerHTML = imgs.map((src,i)=>`<div class="pick-thumb ${i===imgs.length-1?'sel':''}" data-src="${i}"><img src="${src}"><div class="cap" style="font-size:0.72rem;text-align:center">${i===0?'před':(i===imgs.length-1?'po opravě':'foto '+(i+1))}</div></div>`).join('');
-          // výchozí „foto po opravě" = poslední obrázek
-          if(imgs.length){
-            officePhotos.afterPhoto = imgs[imgs.length-1];
-            updateAfterPreview(body);
-            setFloatAfter(officePhotos.afterPhoto); // zpřístupni „po opravě" v plovoucím okně
-          }
-          imgWrap.querySelectorAll('.pick-thumb').forEach(t=>{
-            t.addEventListener('click', ()=>{
-              imgWrap.querySelectorAll('.pick-thumb').forEach(x=>x.classList.remove('sel'));
-              t.classList.add('sel');
-              officePhotos.afterPhoto = imgs[+t.dataset.src];
-              updateAfterPreview(body);
-              setFloatAfter(officePhotos.afterPhoto);
-            });
-          });
-          const openBtn = body.querySelector('#open-pdf');
-          if(openBtn) openBtn.style.display = '';
-          status.textContent = `✓ Načteno a uloženo PDF (${imgs.length} fotek). Zkontroluj identifikaci a vyber foto po opravě.`;
+          // nová oprava: fotka po opravě = výchozí poslední obrázek (_images/_afterIdx jen dočasně pro výběr)
+          const rep = {
+            pdf: pdfB64,
+            _images: imgs,
+            _afterIdx: imgs.length ? imgs.length-1 : -1,
+            afterPhoto: imgs.length ? imgs[imgs.length-1] : '',
+            id_cev: info.id_cev || 'N/A',
+            spravce: info.spravce || '',
+            komunikace: info.komunikace || '',
+            datum_ukonceni: info.datum_ukonceni || '',
+            zaruka: info.zaruka || '',
+          };
+          if(!officePhotos.repairs) officePhotos.repairs = [];
+          officePhotos.repairs.push(rep);
+          renderRepairs(body, entry, true); // přepočítá nejpozdější a vyplní identifikaci
+          status.textContent = `✓ Přidáno PDF (${imgs.length} fotek). Celkem oprav: ${officePhotos.repairs.length}. Zkontroluj identifikaci a vyber foto po opravě.`;
         }catch(err){ console.error('PDF import:', err); status.textContent = '✕ Chyba čtení PDF: ' + (err.message||err); }
       }
 
-      function updateAfterPreview(body){
+      // Datum ukončení (např. „09.07.2026 13:23") → timestamp pro porovnání; 0 když nejde
+      function parseCzDate(s){
+        if(!s) return 0;
+        const m = String(s).match(/(\d{1,2})\.\s*(\d{1,2})\.\s*(\d{4})(?:[^\d]+(\d{1,2}):(\d{2}))?/);
+        if(!m) return 0;
+        return new Date(+m[3], +m[2]-1, +m[1], +(m[4]||0), +(m[5]||0)).getTime();
+      }
+
+      // Vykreslí karty nahraných oprav; při autofill vyplní identifikaci z opravy s nejpozdějším datem ukončení
+      function renderRepairs(body, entry, autofill){
+        const list = body.querySelector('#repairs-list');
+        if(!list) return;
+        const reps = officePhotos.repairs || [];
+        // najdi opravu s nejpozdějším datem ukončení (poslední nahraná vyhrává při shodě)
+        let latest = -1, latestT = -Infinity;
+        reps.forEach((r,i)=>{ const t = parseCzDate(r.datum_ukonceni); if(t >= latestT){ latestT = t; latest = i; } });
+        // karty
+        list.innerHTML = reps.map((r,i)=>{
+          const imgs = (r._images && r._images.length) ? r._images : (r.afterPhoto ? [r.afterPhoto] : []);
+          const selIdx = (r._afterIdx!=null && r._afterIdx>=0) ? r._afterIdx : (imgs.length ? imgs.length-1 : -1);
+          const thumbs = imgs.map((src,j)=>`<div class="pick-thumb ${j===selIdx?'sel':''}" data-rep="${i}" data-img="${j}"><img src="${src}"><div class="cap" style="font-size:0.72rem;text-align:center">${imgs.length>1?(j===0?'před':(j===imgs.length-1?'po opravě':'foto '+(j+1))):'po opravě'}</div></div>`).join('');
+          return `<div class="repair-card">
+            <div class="rc-head">Oprava #${i+1} — ID CEV: ${escapeHtml(r.id_cev||'N/A')} · ukončeno: ${escapeHtml(r.datum_ukonceni||'—')} ${(i===latest && reps.length>1)?'<span class="rc-latest">nejpozdější → identifikace</span>':''}
+              <span class="rc-actions">
+                ${r.pdf?`<button type="button" class="btn-small" data-open-pdf="${i}">📄 Otevřít PDF</button>`:''}
+                <button type="button" class="btn-small" data-remove-rep="${i}">✕ Odebrat</button>
+              </span>
+            </div>
+            <div class="rc-thumbs">${thumbs || '<span class="hint">bez fotky</span>'}</div>
+          </div>`;
+        }).join('');
+
+        // identifikace + primární fotka po opravě z nejpozdější opravy
+        if(latest >= 0){
+          const r = reps[latest];
+          if(autofill){
+            const idInp = body.querySelector('[data-key="id_cev"]');
+            const oprInp = body.querySelector('[data-key="oprava"]');
+            if(idInp) idInp.value = r.id_cev || 'N/A';
+            if(oprInp){ const parts=[r.spravce, r.komunikace, r.datum_ukonceni].filter(Boolean); oprInp.value = parts.length ? parts.join(', ') : 'N/A'; }
+            const rekl = zarukaToReklamace(r.zaruka);
+            if(rekl) setOfficeRadio(body, 'reklamace', rekl);
+          }
+          officePhotos.afterPhoto = r.afterPhoto || ''; // primární (plovoucí okno, Záznamy)
+          officePhotos.repairPdf = r.pdf || '';
+          entry.afterPhoto = officePhotos.afterPhoto;
+          setFloatAfter(officePhotos.afterPhoto);
+        } else {
+          officePhotos.afterPhoto = ''; officePhotos.repairPdf = '';
+        }
+
+        // sloučená galerie „Foto po opravě" = fotky ze všech oprav
         const prev = body.querySelector('#after-photo-preview');
-        if(prev && officePhotos.afterPhoto) prev.innerHTML = `<div class="of-photo"><img src="${officePhotos.afterPhoto}"><div class="cap">po opravě</div></div>`;
+        if(prev){
+          const shots = reps.map((r,i)=> r.afterPhoto?`<div class="of-photo"><img src="${r.afterPhoto}"><div class="cap">po opravě${reps.length>1?' #'+(i+1):''}</div></div>`:'').filter(Boolean).join('');
+          prev.innerHTML = shots || '<span class="hint">zatím nenahráno (naimportuj PDF)</span>';
+        }
+
+        // wiring karet
+        list.querySelectorAll('[data-open-pdf]').forEach(b=> b.addEventListener('click', ()=> openPdf(reps[+b.dataset.openPdf].pdf)));
+        list.querySelectorAll('[data-remove-rep]').forEach(b=> b.addEventListener('click', ()=>{ reps.splice(+b.dataset.removeRep,1); renderRepairs(body, entry, true); }));
+        list.querySelectorAll('.pick-thumb').forEach(t=> t.addEventListener('click', ()=>{
+          const r = reps[+t.dataset.rep];
+          const imgs = (r._images && r._images.length) ? r._images : (r.afterPhoto ? [r.afterPhoto] : []);
+          r._afterIdx = +t.dataset.img; r.afterPhoto = imgs[+t.dataset.img];
+          renderRepairs(body, entry, false); // změna fotky – identifikaci nepřepisuj
+        }));
       }
 
       // Rozdělí text stránky na levý a pravý sloupec (podle X vůči středu stránky) a v každém poskládá řádky
@@ -1552,12 +1621,12 @@
           ${rovBadge?`<div class="field"><strong>📐 Rovinatost</strong><div class="field-value">${rovBadge}</div></div>`:''}
           <div class="field"><strong>🛞 Vyjetá kolej</strong><div class="field-value">${entry.vyjetaKolej?'Ano':'Ne'}</div></div>
           ${entry.note?`<div class="field"><strong>📝 Poznámka</strong><div class="field-value">${escapeHtml(entry.note)}</div></div>`:''}
-          ${entry.afterPhoto?`<div class="field"><strong>📷 Foto po opravě</strong><img src="${entry.afterPhoto}" alt="Foto po opravě"></div>`:''}
+          ${afterPhotosDetailHtml(entry)}
           ${officeSummaryHtml(entry)}
           <div style="margin-top:12px;display:flex;gap:8px;flex-wrap:wrap">
             <button id="viewer-download" class="btn-small">Stáhnout foto</button>
             <button id="viewer-office" class="btn-small">${entry.officeDone?'Upravit office část':'Doplnit office část'}</button>
-            ${(entry.office && entry.office.repairPdf)?'<button id="viewer-pdf" class="btn-small">📄 Záznam o opravě</button>':''}
+            ${repairPdfButtonsHtml(entry)}
             <button id="edit-coords-btn" class="btn-small">Upravit souřadnice</button>
             <button id="viewer-delete" class="btn-small danger">Smazat záznam</button>
           </div>
@@ -1613,6 +1682,7 @@
         document.getElementById('viewer-download').onclick = ()=> downloadPhoto(entry.photo, entry.id);
         document.getElementById('viewer-office').onclick = ()=>{ closeViewer(); openOfficeForm(entry.id); };
         { const pb = document.getElementById('viewer-pdf'); if(pb) pb.onclick = ()=> openPdf(entry.office && entry.office.repairPdf); }
+        viewer.querySelectorAll('[data-viewer-pdf]').forEach(b=> b.onclick = ()=> openPdf(entry.office.repairs[+b.dataset.viewerPdf].pdf));
         document.getElementById('viewer-delete').onclick = async ()=>{ if(confirm('Opravdu smazat tento záznam?')){ await deleteEntryFully(entry.id); closeViewer(); await renderFoldersAndEntries(); }};
 
         // registrace pro tlačítko Zpět (mobil/prohlížeč)
@@ -1633,6 +1703,24 @@
         if(o.rovinatost_verdikt) rows.push(`<div><strong>Rovinatost (auto):</strong> ${escapeHtml(o.rovinatost_verdikt)}</div>`);
         const vyvrtFoto = o.vyvrt_foto ? `<div style="margin-top:6px"><strong>Fotka vývrtu:</strong><br><img src="${o.vyvrt_foto}" alt="vývrt" style="max-width:220px"></div>` : '';
         return `<div class="field"><strong>🏢 Office část kontroly</strong><div class="field-value" style="display:grid;gap:4px;margin-top:6px">${rows.join('')}${vyvrtFoto}</div></div>`;
+      }
+
+      // Detail záznamu: všechny fotky po opravě (z více oprav), fallback na jednu
+      function afterPhotosDetailHtml(entry){
+        const reps = (entry.office && Array.isArray(entry.office.repairs)) ? entry.office.repairs.filter(r=>r.afterPhoto) : [];
+        if(reps.length){
+          const imgs = reps.map((r,i)=>`<img src="${r.afterPhoto}" alt="Foto po opravě ${i+1}" style="margin-top:6px">`).join('');
+          return `<div class="field"><strong>📷 Foto po opravě${reps.length>1?' ('+reps.length+' opravy)':''}</strong>${imgs}</div>`;
+        }
+        return entry.afterPhoto?`<div class="field"><strong>📷 Foto po opravě</strong><img src="${entry.afterPhoto}" alt="Foto po opravě"></div>`:'';
+      }
+      // Detail záznamu: tlačítko „Záznam o opravě" pro každé nahrané PDF
+      function repairPdfButtonsHtml(entry){
+        const reps = (entry.office && Array.isArray(entry.office.repairs)) ? entry.office.repairs.filter(r=>r.pdf) : [];
+        if(reps.length){
+          return reps.map((r,i)=>`<button class="btn-small" data-viewer-pdf="${i}">📄 Záznam o opravě${reps.length>1?' #'+(i+1):''}</button>`).join('');
+        }
+        return (entry.office && entry.office.repairPdf)?'<button id="viewer-pdf" class="btn-small">📄 Záznam o opravě</button>':'';
       }
 
       // wire up form and registration
