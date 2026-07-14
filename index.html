@@ -184,8 +184,7 @@
     .photos-compare .pc-col{flex:1 1 260px;min-width:220px}
     .photos-compare .pc-title{font-weight:600;font-size:0.88rem;color:#33414f;margin-bottom:6px}
     .photos-compare .of-photo{width:100%}
-    .photos-compare .of-photo img{width:100%;height:170px;object-fit:cover;cursor:zoom-in}
-    .of-photo img{cursor:zoom-in}
+    .photos-compare .of-photo img{width:100%;height:170px;object-fit:cover}
     .office-actions{margin-top:1.5rem;display:flex;gap:10px;flex-wrap:wrap;align-items:center;padding-top:1rem;border-top:1px solid #eef1f6}
     /* --- Kontrolní výjezd: sekce jako karty --- */
     #noteForm{background:transparent;box-shadow:none;padding:0}
@@ -217,10 +216,6 @@
     #fp-reopen{position:fixed;right:16px;bottom:16px;z-index:9400;background:var(--brand);color:#fff;border:none;border-radius:999px;padding:10px 15px;font-size:0.85rem;font-weight:600;cursor:pointer;box-shadow:0 6px 20px rgba(0,0,0,0.28);display:flex;align-items:center;gap:6px}
     #fp-reopen:hover{opacity:0.92}
     #fp-reopen[hidden]{display:none}
-    /* Fullscreen náhled fotky (na celou obrazovku) */
-    #photo-lightbox{position:fixed;inset:0;z-index:12000;background:rgba(0,0,0,0.9);display:flex;align-items:center;justify-content:center;cursor:zoom-out}
-    #photo-lightbox[hidden]{display:none}
-    #photo-lightbox img{max-width:98vw;max-height:98vh;object-fit:contain}
     /* --- Výběr jmen (sbalený: chipy + tlačítko +) --- */
     .names-wrap{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
     .names-selected{display:flex;gap:6px;flex-wrap:wrap;align-items:center}
@@ -390,7 +385,7 @@
 
           <footer>
             Aplikace funguje offline. Data jsou uložena lokálně v zařízení (IndexedDB).<br>
-            <span style="color:var(--muted);font-size:0.95em;">Verze aplikace: v3.2.0-test · Build 2026-07-14·9</span>
+            <span style="color:var(--muted);font-size:0.95em;">Verze aplikace: v3.2.0-test · Build 2026-07-14·10</span>
           </footer>
         </main>
       </div>
@@ -422,7 +417,6 @@
         <div id="fp-imgwrap"><img id="fp-img" src="" alt="foto" draggable="false"></div>
       </div>
       <button type="button" id="fp-reopen" hidden>📌 Otevřít foto</button>
-      <div id="photo-lightbox" hidden><img id="pl-img" src="" alt="foto na celou obrazovku"></div>
 
       <script>
       // --- Supabase (cloud sdílení) ---
@@ -938,8 +932,6 @@
       function closeFloatPhoto(){ const fp = document.getElementById('float-photo'); if(fp) fp.hidden = true; setReopenBtn(true); } // zavření křížkem → nabídni znovuotevření
       function setFloatAfter(po){ floatState.po = po || ''; const fp = document.getElementById('float-photo'); if(fp && !fp.hidden) renderFloatImg(); }
       function hideFloatPhoto(){ const fp = document.getElementById('float-photo'); if(fp) fp.hidden = true; setReopenBtn(false); } // opuštění office → schovej vše
-      // Zobrazí fotku na celou obrazovku
-      function openLightbox(src){ if(!src) return; document.getElementById('pl-img').src = src; document.getElementById('photo-lightbox').hidden = false; }
 
       // Vykreslí seznam záznamů (office) NEBO formulář pro vybraný záznam
       async function renderOffice(){
@@ -1788,14 +1780,9 @@
           fimg.addEventListener('pointercancel', endPan);
           // Dvojklik = reset přiblížení zpět na 100 %
           fimg.addEventListener('dblclick', e=>{ e.preventDefault(); resetFloatZoom(); });
-          // Klik na fotku (při 100 %) → celá obrazovka (maximální detail)
-          const lb = document.getElementById('photo-lightbox');
-          fimg.addEventListener('click', ()=>{ if(floatState.zoom > 1) return; openLightbox(fimg.src); });
-          lb.addEventListener('click', ()=> lb.hidden = true);
+          // Klik na fotku (při 100 %) → zvětšit / zmenšit okno (jako tlačítko ⤢)
+          fimg.addEventListener('click', ()=>{ if(floatState.zoom > 1) return; fp.classList.toggle('big'); resetFloatZoom(); });
         })();
-
-        // Klik na jakoukoli fotku v kartách (.of-photo) → zvětšení na celou obrazovku
-        document.addEventListener('click', e=>{ const img=e.target; if(img.tagName==='IMG' && img.closest('.of-photo')) openLightbox(img.src); });
 
         // Reakce na změnu přihlášení
         sb.auth.onAuthStateChange(async (_event, session)=>{
