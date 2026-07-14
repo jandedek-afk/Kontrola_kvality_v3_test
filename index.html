@@ -390,7 +390,7 @@
 
           <footer>
             Aplikace funguje offline. Data jsou uložena lokálně v zařízení (IndexedDB).<br>
-            <span style="color:var(--muted);font-size:0.95em;">Verze aplikace: v3.2.0-test · Build 2026-07-14·7</span>
+            <span style="color:var(--muted);font-size:0.95em;">Verze aplikace: v3.2.0-test · Build 2026-07-14·8</span>
           </footer>
         </main>
       </div>
@@ -1736,20 +1736,31 @@
           // --- Zoom kolečkem + posun tažením v rámci okna ---
           const wrap = document.getElementById('fp-imgwrap');
           const fimg = document.getElementById('fp-img');
+          // Skutečně zobrazená fotka uvnitř rámečku (object-fit:contain nechává kolem okraje)
+          function fimgMetrics(){
+            const boxW = fimg.clientWidth, boxH = fimg.clientHeight;
+            const nW = fimg.naturalWidth || boxW, nH = fimg.naturalHeight || boxH;
+            const s = Math.min(boxW/nW, boxH/nH) || 1; // měřítko contain
+            const dispW = nW*s, dispH = nH*s;
+            return { boxW, boxH, dispW, dispH, offX:(boxW-dispW)/2, offY:(boxH-dispH)/2 };
+          }
+          // Omez posun tak, aby fotka (ne prázdný okraj) vyplňovala okno; menší rozměr vycentruj
           function clampFloatPan(){
+            const m = fimgMetrics(), z = floatState.zoom;
             const ww = wrap.clientWidth, wh = wrap.clientHeight;
-            const iw = fimg.clientWidth * floatState.zoom, ih = fimg.clientHeight * floatState.zoom;
-            const minX = Math.min(0, ww - iw), minY = Math.min(0, wh - ih);
-            floatState.panX = Math.max(minX, Math.min(0, floatState.panX));
-            floatState.panY = Math.max(minY, Math.min(0, floatState.panY));
+            const pw = m.dispW*z, ph = m.dispH*z;
+            if(pw <= ww){ floatState.panX = (ww - pw)/2 - m.offX*z; }
+            else { floatState.panX = Math.max(ww - pw - m.offX*z, Math.min(-m.offX*z, floatState.panX)); }
+            if(ph <= wh){ floatState.panY = (wh - ph)/2 - m.offY*z; }
+            else { floatState.panY = Math.max(wh - ph - m.offY*z, Math.min(-m.offY*z, floatState.panY)); }
           }
           wrap.addEventListener('wheel', e=>{
             e.preventDefault(); // ať kolečko nescrolluje stránku
             const rect = wrap.getBoundingClientRect();
             const cx = e.clientX - rect.left, cy = e.clientY - rect.top; // pozice kurzoru v okně
             const oldZoom = floatState.zoom;
-            const factor = e.deltaY < 0 ? 1.15 : 1/1.15;
-            const z = Math.min(6, Math.max(1, oldZoom * factor));
+            const factor = e.deltaY < 0 ? 1.2 : 1/1.2;
+            const z = Math.min(8, Math.max(1, oldZoom * factor));
             const ratio = z / oldZoom;
             floatState.panX = cx - (cx - floatState.panX) * ratio; // zoom k místu pod kurzorem
             floatState.panY = cy - (cy - floatState.panY) * ratio;
@@ -1773,6 +1784,8 @@
           const endPan = e=>{ if(ipan){ ipan = null; fimg.classList.remove('grabbing'); try{ fimg.releasePointerCapture(e.pointerId); }catch(_){} } };
           fimg.addEventListener('pointerup', endPan);
           fimg.addEventListener('pointercancel', endPan);
+          // Dvojklik = reset přiblížení zpět na 100 %
+          fimg.addEventListener('dblclick', e=>{ e.preventDefault(); resetFloatZoom(); });
           // Klik na fotku (při 100 %) → celá obrazovka (maximální detail)
           const lb = document.getElementById('photo-lightbox');
           fimg.addEventListener('click', ()=>{ if(floatState.zoom > 1) return; openLightbox(fimg.src); });
