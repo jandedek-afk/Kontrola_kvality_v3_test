@@ -190,7 +190,7 @@
     .photos-compare .pc-col{flex:1 1 260px;min-width:220px}
     .photos-compare .pc-title{font-weight:600;font-size:0.88rem;color:#33414f;margin-bottom:6px}
     .photos-compare .of-photo{width:100%}
-    .photos-compare .of-photo img{width:100%;height:170px;object-fit:cover}
+    .photos-compare .of-photo img{width:auto;max-width:100%;height:auto;max-height:260px;object-fit:contain;background:#f4f8fe;border-radius:8px}
     .office-actions{margin-top:1.5rem;display:flex;gap:10px;flex-wrap:wrap;align-items:center;padding-top:1rem;border-top:1px solid #eef1f6}
     /* --- Kontrolní výjezd: sekce jako karty --- */
     #noteForm{background:transparent;box-shadow:none;padding:0}
@@ -391,7 +391,7 @@
 
           <footer>
             Aplikace funguje offline. Data jsou uložena lokálně v zařízení (IndexedDB).<br>
-            <span style="color:var(--muted);font-size:0.95em;">Verze aplikace: v3.2.0-test · Build 2026-07-14·11</span>
+            <span style="color:var(--muted);font-size:0.95em;">Verze aplikace: v3.2.0-test · Build 2026-07-14·12</span>
           </footer>
         </main>
       </div>
