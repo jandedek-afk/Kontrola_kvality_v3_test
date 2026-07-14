@@ -209,7 +209,14 @@
     #fp-tabs button{flex:1;background:#fff;border:1px solid #cdddf3;color:#33506f;border-radius:6px;padding:5px 6px;font-size:0.78rem;font-weight:600;cursor:pointer}
     #fp-tabs button.active{background:var(--brand);color:#fff;border-color:var(--brand)}
     #fp-tabs button:disabled{opacity:0.4;cursor:not-allowed}
-    #fp-img{display:block;width:100%;height:auto;max-height:74vh;object-fit:contain;background:#f4f8fe;cursor:zoom-in}
+    #fp-imgwrap{overflow:hidden;background:#f4f8fe;max-height:74vh;display:flex;touch-action:none}
+    #fp-img{display:block;width:100%;height:auto;max-height:74vh;object-fit:contain;background:#f4f8fe;cursor:zoom-in;transform-origin:0 0;will-change:transform}
+    #fp-img.zoomed{cursor:grab}
+    #fp-img.grabbing{cursor:grabbing}
+    /* Plovoucí tlačítko pro znovuotevření okna s fotem (v rohu, kde okno bylo) */
+    #fp-reopen{position:fixed;right:16px;bottom:16px;z-index:9400;background:var(--brand);color:#fff;border:none;border-radius:999px;padding:10px 15px;font-size:0.85rem;font-weight:600;cursor:pointer;box-shadow:0 6px 20px rgba(0,0,0,0.28);display:flex;align-items:center;gap:6px}
+    #fp-reopen:hover{opacity:0.92}
+    #fp-reopen[hidden]{display:none}
     /* Fullscreen náhled fotky (na celou obrazovku) */
     #photo-lightbox{position:fixed;inset:0;z-index:12000;background:rgba(0,0,0,0.9);display:flex;align-items:center;justify-content:center;cursor:zoom-out}
     #photo-lightbox[hidden]{display:none}
@@ -383,7 +390,7 @@
 
           <footer>
             Aplikace funguje offline. Data jsou uložena lokálně v zařízení (IndexedDB).<br>
-            <span style="color:var(--muted);font-size:0.95em;">Verze aplikace: v3.2.0-test · Build 2026-07-02·6</span>
+            <span style="color:var(--muted);font-size:0.95em;">Verze aplikace: v3.2.0-test · Build 2026-07-14·7</span>
           </footer>
         </main>
       </div>
@@ -412,8 +419,9 @@
           <button type="button" data-tab="po">📸 Po opravě</button>
           <button type="button" data-tab="pri" class="active">📷 Při kontrole</button>
         </div>
-        <img id="fp-img" src="" alt="foto">
+        <div id="fp-imgwrap"><img id="fp-img" src="" alt="foto"></div>
       </div>
+      <button type="button" id="fp-reopen" hidden>📌 Otevřít foto</button>
       <div id="photo-lightbox" hidden><img id="pl-img" src="" alt="foto na celou obrazovku"></div>
 
       <script>
@@ -896,28 +904,40 @@
       function todayISODate(){ const d=new Date(); const p=n=>String(n).padStart(2,'0'); return `${d.getFullYear()}-${p(d.getMonth()+1)}-${p(d.getDate())}`; }
 
       // Plovoucí okno s fotkami (při kontrole + po opravě) – pomůcka při vizuálním posouzení
-      const floatState = { pri:'', po:'', tab:'pri' };
+      const floatState = { pri:'', po:'', tab:'pri', zoom:1, panX:0, panY:0 };
+      function applyFloatTransform(){
+        const img = document.getElementById('fp-img');
+        img.style.transform = `translate(${floatState.panX}px,${floatState.panY}px) scale(${floatState.zoom})`;
+        img.classList.toggle('zoomed', floatState.zoom > 1);
+      }
+      function resetFloatZoom(){ floatState.zoom = 1; floatState.panX = 0; floatState.panY = 0; applyFloatTransform(); }
       function renderFloatImg(){
         const fp = document.getElementById('float-photo');
         const src = floatState[floatState.tab] || '';
         const img = document.getElementById('fp-img');
         img.src = src; img.style.display = src ? 'block' : 'none';
+        resetFloatZoom(); // nová fotka / přepnutí = zpět na 100 %
         fp.querySelectorAll('#fp-tabs button').forEach(b=>{
           b.classList.toggle('active', b.dataset.tab === floatState.tab);
           if(b.dataset.tab === 'po') b.disabled = !floatState.po;
         });
       }
+      // Pomocné tlačítko pro znovuotevření – ukáže se jen když je okno zavřené a je co ukázat
+      function setReopenBtn(show){ const rb = document.getElementById('fp-reopen'); if(rb) rb.hidden = !(show && (floatState.pri || floatState.po)); }
       function showFloatPhoto(pri, po){
         const fp = document.getElementById('float-photo');
         floatState.pri = pri || ''; floatState.po = po || ''; floatState.tab = 'pri';
-        if(!floatState.pri && !floatState.po){ fp.hidden = true; return; }
+        if(!floatState.pri && !floatState.po){ fp.hidden = true; setReopenBtn(false); return; }
         // vrať okno do viditelného rohu (kdyby bylo dřív přetažené mimo obraz)
         fp.style.left = ''; fp.style.top = ''; fp.style.right = '16px'; fp.style.bottom = '16px';
         fp.hidden = false;
+        setReopenBtn(false); // okno je otevřené → tlačítko schovej
         renderFloatImg();
       }
+      function reopenFloatPhoto(){ const fp = document.getElementById('float-photo'); if(!fp) return; fp.hidden = false; setReopenBtn(false); renderFloatImg(); }
+      function closeFloatPhoto(){ const fp = document.getElementById('float-photo'); if(fp) fp.hidden = true; setReopenBtn(true); } // zavření křížkem → nabídni znovuotevření
       function setFloatAfter(po){ floatState.po = po || ''; const fp = document.getElementById('float-photo'); if(fp && !fp.hidden) renderFloatImg(); }
-      function hideFloatPhoto(){ const fp = document.getElementById('float-photo'); if(fp) fp.hidden = true; }
+      function hideFloatPhoto(){ const fp = document.getElementById('float-photo'); if(fp) fp.hidden = true; setReopenBtn(false); } // opuštění office → schovej vše
       // Zobrazí fotku na celou obrazovku
       function openLightbox(src){ if(!src) return; document.getElementById('pl-img').src = src; document.getElementById('photo-lightbox').hidden = false; }
 
@@ -1021,7 +1041,6 @@
                 <div class="of-photo-row">${entry.photo?`<div class="of-photo"><img src="${entry.photo}"><div class="cap">${escapeHtml(entry.timeText||'')}</div></div>`:'<span class="hint">bez fotky</span>'}</div>
               </div>
             </div>
-            ${entry.photo?`<button type="button" class="btn-small" id="reopen-float" style="margin-top:10px">📌 Otevřít plovoucí okno s fotem</button>`:''}
 
             ${sectionsHtml}
 
@@ -1092,8 +1111,6 @@
         body.querySelector('#office-back').addEventListener('click', ()=> history.back());
         body.querySelector('#office-cancel').addEventListener('click', ()=> history.back());
         body.querySelector('#office-save').addEventListener('click', ()=> saveOffice(body, entry));
-        const reopenBtn = body.querySelector('#reopen-float');
-        if(reopenBtn) reopenBtn.addEventListener('click', ()=> showFloatPhoto(entry.photo, officePhotos.afterPhoto || entry.afterPhoto));
         const openPdfBtn = body.querySelector('#open-pdf');
         if(openPdfBtn) openPdfBtn.addEventListener('click', ()=> openPdf(officePhotos.repairPdf || (entry.office && entry.office.repairPdf)));
       }
@@ -1710,13 +1727,55 @@
           const end = e=>{ drag = null; try{ head.releasePointerCapture(e.pointerId); }catch(_){} };
           head.addEventListener('pointerup', end);
           head.addEventListener('pointercancel', end);
-          document.getElementById('fp-close').addEventListener('click', ()=> fp.hidden = true);
-          document.getElementById('fp-size').addEventListener('click', ()=> fp.classList.toggle('big'));
+          document.getElementById('fp-close').addEventListener('click', ()=> closeFloatPhoto());
+          document.getElementById('fp-reopen').addEventListener('click', ()=> reopenFloatPhoto());
+          document.getElementById('fp-size').addEventListener('click', ()=>{ fp.classList.toggle('big'); resetFloatZoom(); });
           // Přepínání Při kontrole / Po opravě
           fp.querySelectorAll('#fp-tabs button').forEach(b=> b.addEventListener('click', ()=>{ if(b.disabled) return; floatState.tab = b.dataset.tab; renderFloatImg(); }));
-          // Klik na fotku → celá obrazovka (maximální detail)
+
+          // --- Zoom kolečkem + posun tažením v rámci okna ---
+          const wrap = document.getElementById('fp-imgwrap');
+          const fimg = document.getElementById('fp-img');
+          function clampFloatPan(){
+            const ww = wrap.clientWidth, wh = wrap.clientHeight;
+            const iw = fimg.clientWidth * floatState.zoom, ih = fimg.clientHeight * floatState.zoom;
+            const minX = Math.min(0, ww - iw), minY = Math.min(0, wh - ih);
+            floatState.panX = Math.max(minX, Math.min(0, floatState.panX));
+            floatState.panY = Math.max(minY, Math.min(0, floatState.panY));
+          }
+          wrap.addEventListener('wheel', e=>{
+            e.preventDefault(); // ať kolečko nescrolluje stránku
+            const rect = wrap.getBoundingClientRect();
+            const cx = e.clientX - rect.left, cy = e.clientY - rect.top; // pozice kurzoru v okně
+            const oldZoom = floatState.zoom;
+            const factor = e.deltaY < 0 ? 1.15 : 1/1.15;
+            const z = Math.min(6, Math.max(1, oldZoom * factor));
+            const ratio = z / oldZoom;
+            floatState.panX = cx - (cx - floatState.panX) * ratio; // zoom k místu pod kurzorem
+            floatState.panY = cy - (cy - floatState.panY) * ratio;
+            floatState.zoom = z;
+            clampFloatPan(); applyFloatTransform();
+          }, { passive:false });
+          // Posun tažením (jen když je přiblíženo); jinak klik nechává otevřít fullscreen
+          let ipan = null;
+          fimg.addEventListener('pointerdown', e=>{
+            if(floatState.zoom <= 1) return;
+            ipan = { x:e.clientX, y:e.clientY, px:floatState.panX, py:floatState.panY };
+            fimg.classList.add('grabbing');
+            try{ fimg.setPointerCapture(e.pointerId); }catch(_){}
+          });
+          fimg.addEventListener('pointermove', e=>{
+            if(!ipan) return;
+            floatState.panX = ipan.px + (e.clientX - ipan.x);
+            floatState.panY = ipan.py + (e.clientY - ipan.y);
+            clampFloatPan(); applyFloatTransform();
+          });
+          const endPan = e=>{ if(ipan){ ipan = null; fimg.classList.remove('grabbing'); try{ fimg.releasePointerCapture(e.pointerId); }catch(_){} } };
+          fimg.addEventListener('pointerup', endPan);
+          fimg.addEventListener('pointercancel', endPan);
+          // Klik na fotku (při 100 %) → celá obrazovka (maximální detail)
           const lb = document.getElementById('photo-lightbox');
-          document.getElementById('fp-img').addEventListener('click', ()=> openLightbox(document.getElementById('fp-img').src));
+          fimg.addEventListener('click', ()=>{ if(floatState.zoom > 1) return; openLightbox(fimg.src); });
           lb.addEventListener('click', ()=> lb.hidden = true);
         })();
 
