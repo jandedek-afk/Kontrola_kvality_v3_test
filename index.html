@@ -187,6 +187,28 @@
     .repair-card .rc-latest{background:var(--brand);color:#fff;border-radius:999px;padding:2px 8px;font-size:0.72rem;font-weight:600}
     .repair-card .rc-actions{margin-left:auto;display:flex;gap:6px}
     .repair-card .rc-thumbs{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px}
+    /* --- Filtrovací lišta v Záznamech --- */
+    .filter-bar{background:#fff;border:1px solid #e6eef9;border-radius:12px;padding:12px;margin-bottom:1rem;box-shadow:0 2px 8px rgba(0,0,0,0.05)}
+    .filter-bar .f-search{width:100%;padding:10px;border-radius:8px;border:1px solid #cdddf3;font-family:inherit;font-size:0.95rem;margin-bottom:10px}
+    .filter-bar .f-search:focus{outline:none;border-color:var(--brand)}
+    .filter-row{display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end}
+    .filter-row label{display:flex;flex-direction:column;gap:3px;font-size:0.76rem;color:#5a6b7f;font-weight:600}
+    .filter-row input[type=date],.filter-row select{padding:7px 8px;border-radius:8px;border:1px solid #cdddf3;font-family:inherit;font-size:0.9rem;background:#fff}
+    .filter-inspectors{display:flex;gap:6px;flex-wrap:wrap;margin-top:10px}
+    .filter-inspectors .name-opt{cursor:pointer;background:#fff;border:1px solid #cdddf3;color:#111;border-radius:999px;padding:5px 12px;font-size:0.84rem}
+    .filter-inspectors .name-opt.sel{background:var(--brand);color:#fff;border-color:var(--brand)}
+    .filter-count{font-size:0.85rem;color:#5a6b7f;margin:2px 0 10px}
+    /* Hromadné akce */
+    .bulk-bar{display:flex;gap:10px;flex-wrap:wrap;align-items:center;background:#eef5fe;border:1px solid #cdddf3;border-radius:10px;padding:8px 12px;margin-bottom:1rem;font-size:0.86rem}
+    .bulk-bar[hidden]{display:none}
+    .bulk-bar .bulk-count{font-weight:600;color:#33506f}
+    .entry .entry-pick{margin-right:8px;transform:scale(1.3);cursor:pointer;align-self:flex-start;margin-top:4px}
+    /* Export menu */
+    .export-wrap{position:relative;display:inline-block}
+    .export-menu{position:absolute;top:calc(100% + 4px);left:0;z-index:50;background:#fff;border:1px solid #cdddf3;border-radius:10px;box-shadow:0 8px 24px rgba(0,0,0,0.18);min-width:220px;overflow:hidden}
+    .export-menu[hidden]{display:none}
+    .export-menu button{display:block;width:100%;text-align:left;background:none;border:none;padding:10px 14px;font-size:0.9rem;cursor:pointer;color:#233}
+    .export-menu button:hover{background:#eef5fe}
     .conditional[hidden]{display:none}
     /* Dvě fotky vedle sebe (na úzké obrazovce pod sebou) */
     .photos-compare{display:flex;gap:16px;flex-wrap:wrap;margin-top:8px}
@@ -354,14 +376,45 @@
             <h1 class="view-head">📁 Záznamy</h1>
             <div class="form-actions" style="margin-bottom:1rem">
               <button id="backToFoldersBtn" type="button" class="btn-secondary" style="display: none;">Zpět na složky</button>
-              <button id="exportBtn" type="button" class="btn-secondary">Exportovat data</button>
+              <span class="export-wrap">
+                <button id="exportBtn" type="button" class="btn-secondary">Exportovat ▾</button>
+                <div id="export-menu" class="export-menu" hidden>
+                  <button type="button" data-export="json">JSON – záloha / re-import (plná data)</button>
+                  <button type="button" data-export="xlsx">Excel (XLSX) – tabulka bez fotek</button>
+                </div>
+              </span>
               <button id="importBtn" type="button" class="btn-secondary">Importovat data</button>
               <button id="shrinkBtn" type="button" class="btn-secondary">🗜️ Zmenšit velké fotky</button>
               <button id="clearAll" type="button" class="btn-secondary">Vymazat vše</button>
               <input type="file" id="importFile" accept=".json" style="display: none;">
             </div>
+
+            <div class="filter-bar">
+              <input id="f-search" class="f-search" type="search" placeholder="🔍 Hledat – poznámka, jména, složka, ID CEV…">
+              <div class="filter-row">
+                <label>Od<input id="f-from" type="date"></label>
+                <label>Do<input id="f-to" type="date"></label>
+                <label>Složka<select id="f-folder"><option value="">— vše —</option></select></label>
+                <label>Stav office<select id="f-office"><option value="">vše</option><option value="done">✓ hotovo</option><option value="wait">⏳ čeká</option></select></label>
+                <label>Reklamace<select id="f-rekl"><option value="">vše</option><option value="ano">poskytnuta</option><option value="ne">neposkytnuta</option></select></label>
+                <label>Řazení<select id="f-sort"><option value="new">nejnovější</option><option value="old">nejstarší</option><option value="folder">podle složky</option></select></label>
+                <button id="f-reset" type="button" class="btn-small">Zrušit filtry</button>
+              </div>
+              <div id="f-inspectors" class="filter-inspectors"></div>
+            </div>
+
+            <div id="bulk-bar" class="bulk-bar" hidden>
+              <label><input type="checkbox" id="bulk-all"> Vybrat vše (filtrované)</label>
+              <span class="bulk-count" id="bulk-count">0 vybráno</span>
+              <button id="bulk-export-json" type="button" class="btn-small">Export vybraných (JSON)</button>
+              <button id="bulk-export-xlsx" type="button" class="btn-small">Export vybraných (XLSX)</button>
+              <button id="bulk-delete" type="button" class="btn-small danger">Smazat vybrané</button>
+            </div>
+
+            <div id="filter-count" class="filter-count" hidden></div>
             <section class="folders" id="folders"></section>
             <section class="entries" id="entries"></section>
+            <div id="load-more-wrap" style="text-align:center;margin-top:1rem" hidden><button id="load-more" type="button" class="btn-secondary">Načíst další</button></div>
           </section>
 
           <!-- OFFICE – DOPLNĚNÍ KONTROLY -->
@@ -397,7 +450,7 @@
 
           <footer>
             Aplikace funguje offline. Data jsou uložena lokálně v zařízení (IndexedDB).<br>
-            <span style="color:var(--muted);font-size:0.95em;">Verze aplikace: v3.2.0-test · Build 2026-07-15·14</span>
+            <span style="color:var(--muted);font-size:0.95em;">Verze aplikace: v3.2.0-test · Build 2026-07-15·15</span>
           </footer>
         </main>
       </div>
@@ -1460,12 +1513,198 @@
 
       function downloadPhoto(dataURL, id){ if(!dataURL){ alert('Fotografie není dostupná pro stažení.'); return; } const a=document.createElement('a'); a.href=dataURL; a.download=`fotopoznamka_${id}.jpg`; document.body.appendChild(a); a.click(); a.remove(); }
 
+      // ================= Filtrování / hledání / stránkování (vše lokálně nad IndexedDB) =================
+      const PAGE_SIZE = 50;
+      const filterState = { q:'', from:'', to:'', folder:'', office:'', rekl:'', inspectors:[], sort:'new', page:1 };
+      const selectedIds = new Set();
+      let lastFiltered = []; // poslední vyfiltrovaná množina (pro „vybrat vše" a export)
+
+      function filterActive(){
+        const f = filterState;
+        return !!(f.q || f.from || f.to || f.folder || f.office || f.rekl || f.inspectors.length);
+      }
+      function entryMatchesFilter(e){
+        const f = filterState;
+        if(f.q){
+          const hay = [e.note, e.longNote, e.crossNote, e.inspectors, e.folder,
+            e.office&&e.office.id_cev, e.office&&e.office.oprava].filter(Boolean).join(' ').toLowerCase();
+          if(!f.q.toLowerCase().split(/\s+/).filter(Boolean).every(t=> hay.includes(t))) return false;
+        }
+        if(f.from && e.time < Date.parse(f.from+'T00:00:00')) return false;
+        if(f.to && e.time > Date.parse(f.to+'T23:59:59')) return false;
+        if(f.folder && (e.folder||'Bez složky') !== f.folder) return false;
+        if(f.office==='done' && !e.officeDone) return false;
+        if(f.office==='wait' && e.officeDone) return false;
+        if(f.rekl){ const r=(e.office&&e.office.reklamace)||''; if(f.rekl==='ano' && r!=='Záruka byla poskytnuta') return false; if(f.rekl==='ne' && r!=='Záruka nebyla poskytnuta') return false; }
+        if(f.inspectors.length){ const insp=e.inspectors||''; if(!f.inspectors.some(n=> insp.includes(n))) return false; }
+        return true;
+      }
+      function sortEntriesArr(arr){
+        const s = filterState.sort;
+        if(s==='old') return arr.sort((a,b)=>a.time-b.time);
+        if(s==='folder') return arr.sort((a,b)=> (a.folder||'').localeCompare(b.folder||'','cs') || b.time-a.time);
+        return arr.sort((a,b)=>b.time-a.time);
+      }
+      async function getFilteredEntries(){
+        const all = await getAllEntries();
+        return sortEntriesArr(all.filter(entryMatchesFilter));
+      }
+      // Naplní select složek ve filtru (zachová aktuální výběr)
+      function populateFolderFilter(allEntries){
+        const sel = document.getElementById('f-folder'); if(!sel) return;
+        const cur = sel.value;
+        const names = [...new Set(allEntries.map(e=> e.folder || 'Bez složky'))].sort((a,b)=>a.localeCompare(b,'cs'));
+        sel.innerHTML = '<option value="">— vše —</option>' + names.map(n=>`<option value="${escAttr(n)}">${escapeHtml(n)}</option>`).join('');
+        sel.value = cur;
+      }
+      // Chipy kontrolujících osob ve filtru
+      function buildInspectorFilter(){
+        const wrap = document.getElementById('f-inspectors'); if(!wrap) return;
+        const persons = getKnownPersons();
+        wrap.innerHTML = persons.map(n=>`<span class="name-opt ${filterState.inspectors.includes(n)?'sel':''}" data-n="${escAttr(n)}">${escapeHtml(n)}</span>`).join('');
+        wrap.querySelectorAll('.name-opt').forEach(el=> el.addEventListener('click', ()=>{
+          const n = el.dataset.n;
+          if(filterState.inspectors.includes(n)) filterState.inspectors = filterState.inspectors.filter(x=>x!==n);
+          else filterState.inspectors.push(n);
+          filterState.page = 1;
+          renderFoldersAndEntries();
+        }));
+      }
+      function updateBulkBar(){
+        const el = document.getElementById('bulk-count'); if(el) el.textContent = `${selectedIds.size} vybráno`;
+      }
+
+      // Přesun záznamu do jiné složky (sdílené pro seznam i filtr)
+      async function moveEntryPrompt(id, folderToShow){
+        const allEntries = await getAllEntries();
+        const entryToMove = allEntries.find(entry => entry.id === id);
+        if (!entryToMove) { alert('Záznam nebyl nalezen.'); return; }
+        const existingFolders = [...new Set(allEntries.map(entry => entry.folder).filter(f => f && f.trim()))];
+        const currentFolder = entryToMove.folder || 'Bez složky';
+        const newFolderName = prompt(
+          `Kam chcete záznam přesunout?\n\nAktuální složka: "${currentFolder}"\n\nZadejte název cílové složky. Můžete zadat existující nebo novou složku.\nExistující složky: ${existingFolders.join(', ')}`,
+          currentFolder === 'Bez složky' ? '' : currentFolder
+        );
+        if (newFolderName !== null) {
+          const targetFolder = newFolderName.trim();
+          const sourceFolder = entryToMove.folder || '';
+          if (targetFolder !== sourceFolder) {
+            entryToMove.folder = targetFolder;
+            entryToMove.synced = false;
+            await updateEntry(entryToMove);
+            await renderFoldersAndEntries(folderToShow);
+            alert('Záznam byl přesunut.');
+          }
+        }
+      }
+
+      // Sestaví kartu jednoho záznamu (sdílené pro složkový seznam i filtrovaný seznam)
+      function buildEntryCard(e, folderToShow, withPick){
+        const div = document.createElement('div');
+        div.className = 'entry';
+        const coordsText = e.coords ? `${e.coords.lat}, ${e.coords.lon}` : 'bez polohy';
+        let notesHtml = '';
+        if (e.longNote) notesHtml += `<p><strong>📏 Podélné měření:</strong> ${escapeHtml(e.longNote)}</p>`;
+        if (e.crossNote) notesHtml += `<p><strong>↔️ Příčné měření:</strong> ${escapeHtml(e.crossNote)}</p>`;
+        const rovBadge = rovinatostBadge(e.longNote, e.crossNote);
+        if (rovBadge) notesHtml += `<p><strong>📐 Rovinatost:</strong> ${rovBadge}</p>`;
+        if (e.vyjetaKolej) notesHtml += `<p><strong>🛞 Vyjetá kolej:</strong> Ano</p>`;
+        if (e.note) notesHtml += `<p><strong>📝 Poznámka:</strong> ${escapeHtml(e.note)}</p>`;
+        const syncBadge = e.synced ? '' : '<span class="badge-unsynced">⏳ nesynch.</span>';
+        const officeBadge = `<span class="status-pill ${e.officeDone?'done':'wait'}" style="margin-left:6px">${e.officeDone?'✓ office':'⏳ office'}</span>`;
+        const folderTag = (withPick && e.folder) ? `<span class="meta-info">📁 ${escapeHtml(e.folder)}</span>` : '';
+        const pick = withPick ? `<input type="checkbox" class="entry-pick" ${selectedIds.has(e.id)?'checked':''}>` : '';
+        div.innerHTML = `<div class="entry-content">${pick}<img class="thumb" src="${e.photo}" alt="foto"><div class="meta"><div class="meta-header"><strong>${e.timeText}${syncBadge}${officeBadge}</strong><span class="meta-info">${coordsText}</span>${folderTag}</div>${notesHtml}<div class="actions"><button class="btn-small view-btn">Zobrazit</button><button class="btn-small danger delete-btn">Smazat</button><button class="btn-small download-btn">Stáhnout foto</button><button class="btn-small move-btn">Přesunout</button></div></div></div>`;
+        div.querySelector('.view-btn').addEventListener('click', () => viewFull(e.id));
+        div.querySelector('.delete-btn').addEventListener('click', async () => { if (confirm('Opravdu smazat tento záznam?')) { await deleteEntryFully(e.id); selectedIds.delete(e.id); await renderFoldersAndEntries(folderToShow); } });
+        div.querySelector('.download-btn').addEventListener('click', () => downloadPhoto(e.photo, e.id));
+        div.querySelector('.move-btn').addEventListener('click', () => moveEntryPrompt(e.id, folderToShow));
+        if(withPick){
+          const cb = div.querySelector('.entry-pick');
+          cb.addEventListener('change', ()=>{ if(cb.checked) selectedIds.add(e.id); else selectedIds.delete(e.id); updateBulkBar(); });
+        }
+        return div;
+      }
+
+      // Vykreslí plochý filtrovaný seznam (napříč složkami) + stránkování + hromadné akce
+      async function renderFilteredResults(allEntries){
+        const foldersEl = document.getElementById('folders');
+        const entriesEl = document.getElementById('entries');
+        const statusEl = document.getElementById('status');
+        document.getElementById('backToFoldersBtn').style.display = 'none';
+        foldersEl.innerHTML = '';
+        lastFiltered = sortEntriesArr((allEntries || await getAllEntries()).filter(entryMatchesFilter));
+        const shown = lastFiltered.slice(0, filterState.page * PAGE_SIZE);
+        entriesEl.innerHTML = '';
+        shown.forEach(e => entriesEl.appendChild(buildEntryCard(e, null, true)));
+        const cnt = document.getElementById('filter-count');
+        cnt.hidden = false;
+        cnt.textContent = `Zobrazeno ${shown.length} z ${lastFiltered.length} vyfiltrovaných záznamů`;
+        document.getElementById('load-more-wrap').hidden = shown.length >= lastFiltered.length;
+        document.getElementById('bulk-bar').hidden = false;
+        if(statusEl) statusEl.textContent = `${lastFiltered.length} záznamů (filtr)`;
+        const ba = document.getElementById('bulk-all');
+        if(ba) ba.checked = lastFiltered.length>0 && lastFiltered.every(e=> selectedIds.has(e.id));
+        updateBulkBar();
+      }
+
+      // ---- Export vyfiltrované / vybrané množiny ----
+      function downloadBlob(blob, filename){ const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download=filename; document.body.appendChild(a); a.click(); a.remove(); setTimeout(()=>URL.revokeObjectURL(a.href), 30000); }
+      function exportJson(entries){
+        const dateStr = new Date().toISOString().split('T')[0];
+        downloadBlob(new Blob([JSON.stringify(entries,null,2)],{type:'application/json'}), `kontrolakvality_${dateStr}.json`);
+      }
+      // Načte SheetJS z CDN jen když je potřeba (offline → chyba)
+      async function ensureXlsx(){
+        if(window.XLSX) return window.XLSX;
+        await new Promise((res,rej)=>{ const s=document.createElement('script'); s.src='https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js'; s.onload=res; s.onerror=()=>rej(new Error('Nelze načíst knihovnu XLSX (offline?)')); document.head.appendChild(s); });
+        return window.XLSX;
+      }
+      // Jeden záznam → plochý řádek pro tabulku (office rozbalený, fotky vynechané)
+      function entryFlatRow(e){
+        const o = e.office || {};
+        const row = {
+          ID: e.id, 'Čas': e.timeText || '', 'Složka': e.folder || '',
+          Lat: e.coords?e.coords.lat:'', Lon: e.coords?e.coords.lon:'',
+          'Podélné [mm]': e.longNote||'', 'Příčné [mm]': e.crossNote||'',
+          'Rovinatost (auto)': o.rovinatost_verdikt || '',
+          'Vyjetá kolej': e.vyjetaKolej?'Ano':'Ne', 'Poznámka (výjezd)': e.note||'',
+          'Kontrolující': e.inspectors||'', 'Office hotovo': e.officeDone?'Ano':'Ne',
+          'Má fotku': e.photo?'Ano':'Ne', 'Má foto po opravě': e.afterPhoto?'Ano':'Ne',
+        };
+        OFFICE_SCHEMA.forEach(sec=> sec.fields.forEach(f=>{ if(f.type==='photo') return; row[f.label] = o[f.key] || ''; }));
+        if(Array.isArray(o.repairs) && o.repairs.length){
+          row['Počet oprav (PDF)'] = o.repairs.length;
+          row['ID CEV (všechny)'] = o.repairs.map(r=>r.id_cev).filter(Boolean).join(' | ');
+        }
+        return row;
+      }
+      async function exportXlsx(entries){
+        const XLSX = await ensureXlsx();
+        const ws = XLSX.utils.json_to_sheet(entries.map(entryFlatRow));
+        const wb = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(wb, ws, 'Kontroly');
+        const dateStr = new Date().toISOString().split('T')[0];
+        XLSX.writeFile(wb, `kontrolakvality_${dateStr}.xlsx`);
+      }
+      // Množina pro hlavní export = aktuálně vyfiltrovaná (nebo vše, když filtr není)
+      async function currentExportSet(){ return filterActive() ? await getFilteredEntries() : await getAllEntries(); }
+
       async function renderFoldersAndEntries(folderToShow = null) {
         const allEntries = await getAllEntries();
         const foldersEl = document.getElementById('folders');
         const entriesEl = document.getElementById('entries');
         const statusEl = document.getElementById('status');
         const backBtn = document.getElementById('backToFoldersBtn');
+
+        populateFolderFilter(allEntries); // udržuj nabídku složek ve filtru aktuální
+        buildInspectorFilter();           // a chipy kontrolujících (dle kk_persons)
+
+        // Aktivní filtr → plochý filtrovaný seznam místo složek
+        if(filterActive()){ await renderFilteredResults(allEntries); return; }
+        document.getElementById('bulk-bar').hidden = true;
+        document.getElementById('filter-count').hidden = true;
+        document.getElementById('load-more-wrap').hidden = true;
 
         foldersEl.innerHTML = '';
         entriesEl.innerHTML = '';
@@ -1549,53 +1788,7 @@
             backBtn.style.display = 'block';
             foldersEl.innerHTML = `<h2>Složka: ${escapeHtml(folderToShow)}</h2>`;
             const entriesInFolder = allEntries.filter(e => (e.folder || 'Bez složky') === folderToShow);
-
-            entriesInFolder.forEach(e => {
-                const div = document.createElement('div');
-                div.className = 'entry';
-                const coordsText = e.coords ? `${e.coords.lat}, ${e.coords.lon}` : 'bez polohy';
-                let notesHtml = '';
-                if (e.longNote) notesHtml += `<p><strong>📏 Podélné měření:</strong> ${escapeHtml(e.longNote)}</p>`;
-                if (e.crossNote) notesHtml += `<p><strong>↔️ Příčné měření:</strong> ${escapeHtml(e.crossNote)}</p>`;
-                const rovBadge = rovinatostBadge(e.longNote, e.crossNote);
-                if (rovBadge) notesHtml += `<p><strong>📐 Rovinatost:</strong> ${rovBadge}</p>`;
-                if (e.vyjetaKolej) notesHtml += `<p><strong>🛞 Vyjetá kolej:</strong> Ano</p>`;
-                if (e.note) notesHtml += `<p><strong>📝 Poznámka:</strong> ${escapeHtml(e.note)}</p>`;
-                const syncBadge = e.synced ? '' : '<span class="badge-unsynced">⏳ nesynch.</span>';
-                const officeBadge = `<span class="status-pill ${e.officeDone?'done':'wait'}" style="margin-left:6px">${e.officeDone?'✓ office':'⏳ office'}</span>`;
-                div.innerHTML = `<div class="entry-content"><img class="thumb" src="${e.photo}" alt="foto"><div class="meta"><div class="meta-header"><strong>${e.timeText}${syncBadge}${officeBadge}</strong><span class="meta-info">${coordsText}</span></div>${notesHtml}<div class="actions"><button class="btn-small view-btn" data-id="${e.id}">Zobrazit</button><button class="btn-small danger delete-btn" data-id="${e.id}">Smazat</button><button class="btn-small download-btn" data-id="${e.id}">Stáhnout foto</button><button class="btn-small move-btn" data-id="${e.id}">Přesunout</button></div></div></div>`;
-                div.querySelector('.view-btn').addEventListener('click', () => viewFull(e.id));
-                div.querySelector('.delete-btn').addEventListener('click', async () => { if (confirm('Opravdu smazat tento záznam?')) { await deleteEntryFully(e.id); await renderFoldersAndEntries(folderToShow); } });
-                div.querySelector('.download-btn').addEventListener('click', () => downloadPhoto(e.photo, e.id));
-                div.querySelector('.move-btn').addEventListener('click', async () => {
-                    const allEntries = await getAllEntries();
-                    const entryToMove = allEntries.find(entry => entry.id === e.id);
-                    if (!entryToMove) {
-                        alert('Záznam nebyl nalezen.');
-                        return;
-                    }
-
-                    const existingFolders = [...new Set(allEntries.map(entry => entry.folder).filter(f => f && f.trim()))];
-                    const currentFolder = entryToMove.folder || 'Bez složky';
-
-                    const newFolderName = prompt(
-                        `Kam chcete záznam přesunout?\n\nAktuální složka: "${currentFolder}"\n\nZadejte název cílové složky. Můžete zadat existující nebo novou složku.\nExistující složky: ${existingFolders.join(', ')}`,
-                        currentFolder === 'Bez složky' ? '' : currentFolder
-                    );
-
-                    if (newFolderName !== null) {
-                        const targetFolder = newFolderName.trim();
-                        const sourceFolder = entryToMove.folder || '';
-                        if (targetFolder !== sourceFolder) {
-                             entryToMove.folder = targetFolder;
-                             await updateEntry(entryToMove);
-                             await renderFoldersAndEntries(folderToShow);
-                             alert('Záznam byl přesunut.');
-                        }
-                    }
-                });
-                entriesEl.appendChild(div);
-            });
+            entriesInFolder.forEach(e => entriesEl.appendChild(buildEntryCard(e, folderToShow, false)));
             statusEl.textContent = `${entriesInFolder.length} ${entriesInFolder.length === 1 ? 'záznam' : 'záznamy'}`;
         }
     }
@@ -2056,7 +2249,59 @@
           tx.oncomplete = async ()=>{ await renderFoldersAndEntries(); };
           if(navigator.onLine){ all.forEach(e=> deleteFromCloud(e.id).then(ok=>{ if(ok) unmarkDeleted(e.id); })); }
         });
-        document.getElementById('exportBtn').addEventListener('click', async ()=>{ const data = await getAllEntries(); const dateStr = new Date().toISOString().split('T')[0]; const a=document.createElement('a'); a.href = URL.createObjectURL(new Blob([JSON.stringify(data,null,2)],{type:'application/json'})); a.download=`kontrolakvality_${dateStr}.json`; document.body.appendChild(a); a.click(); a.remove(); });
+        // Export menu (JSON / XLSX) – exportuje aktuálně vyfiltrovanou množinu
+        const exportMenu = document.getElementById('export-menu');
+        document.getElementById('exportBtn').addEventListener('click', (e)=>{ e.stopPropagation(); exportMenu.hidden = !exportMenu.hidden; });
+        document.addEventListener('click', (e)=>{ if(!e.target.closest('.export-wrap')) exportMenu.hidden = true; });
+        exportMenu.querySelectorAll('button[data-export]').forEach(b=> b.addEventListener('click', async ()=>{
+          exportMenu.hidden = true;
+          try{
+            const set = await currentExportSet();
+            if(!set.length){ alert('Není co exportovat.'); return; }
+            if(b.dataset.export === 'json') exportJson(set);
+            else { setSyncStatus('Připravuji XLSX…'); await exportXlsx(set); setSyncStatus(''); }
+          }catch(err){ setSyncStatus(''); alert('Export selhal: ' + (err.message||err)); }
+        }));
+
+        // Filtry
+        const applyFilter = (resetPage=true)=>{ if(resetPage) filterState.page = 1; renderFoldersAndEntries(); };
+        const fSearch = document.getElementById('f-search');
+        let searchTimer = null;
+        fSearch.addEventListener('input', ()=>{ filterState.q = fSearch.value.trim(); clearTimeout(searchTimer); searchTimer = setTimeout(()=> applyFilter(), 200); });
+        document.getElementById('f-from').addEventListener('change', (e)=>{ filterState.from = e.target.value; applyFilter(); });
+        document.getElementById('f-to').addEventListener('change', (e)=>{ filterState.to = e.target.value; applyFilter(); });
+        document.getElementById('f-folder').addEventListener('change', (e)=>{ filterState.folder = e.target.value; applyFilter(); });
+        document.getElementById('f-office').addEventListener('change', (e)=>{ filterState.office = e.target.value; applyFilter(); });
+        document.getElementById('f-rekl').addEventListener('change', (e)=>{ filterState.rekl = e.target.value; applyFilter(); });
+        document.getElementById('f-sort').addEventListener('change', (e)=>{ filterState.sort = e.target.value; applyFilter(); });
+        document.getElementById('f-reset').addEventListener('click', ()=>{
+          Object.assign(filterState, { q:'', from:'', to:'', folder:'', office:'', rekl:'', inspectors:[], page:1 });
+          fSearch.value=''; ['f-from','f-to','f-folder','f-office','f-rekl'].forEach(id=> document.getElementById(id).value='');
+          buildInspectorFilter(); renderFoldersAndEntries();
+        });
+        buildInspectorFilter();
+
+        // Stránkování
+        document.getElementById('load-more').addEventListener('click', ()=>{ filterState.page++; renderFoldersAndEntries(); });
+
+        // Hromadné akce
+        document.getElementById('bulk-all').addEventListener('change', (e)=>{
+          if(e.target.checked) lastFiltered.forEach(x=> selectedIds.add(x.id));
+          else lastFiltered.forEach(x=> selectedIds.delete(x.id));
+          renderFoldersAndEntries();
+        });
+        const selectedEntries = async ()=>{ const all = await getAllEntries(); return all.filter(x=> selectedIds.has(x.id)); };
+        document.getElementById('bulk-export-json').addEventListener('click', async ()=>{ const s = await selectedEntries(); if(!s.length){ alert('Nic není vybráno.'); return; } exportJson(s); });
+        document.getElementById('bulk-export-xlsx').addEventListener('click', async ()=>{ const s = await selectedEntries(); if(!s.length){ alert('Nic není vybráno.'); return; } try{ setSyncStatus('Připravuji XLSX…'); await exportXlsx(s); setSyncStatus(''); }catch(err){ setSyncStatus(''); alert('Export selhal: '+(err.message||err)); } });
+        document.getElementById('bulk-delete').addEventListener('click', async ()=>{
+          const ids = [...selectedIds];
+          if(!ids.length){ alert('Nic není vybráno.'); return; }
+          if(!confirm(`Opravdu smazat ${ids.length} vybraných záznamů? Smažou se i z cloudu a nelze to vzít zpět.`)) return;
+          for(const id of ids){ try{ await deleteEntryFully(id); }catch(err){ console.warn('bulk delete', id, err); } }
+          selectedIds.clear();
+          await renderFoldersAndEntries();
+        });
+
         document.getElementById('importBtn').addEventListener('click', ()=> document.getElementById('importFile').click());
         document.getElementById('importFile').addEventListener('change', async (ev)=>{
           const f=ev.target.files[0]; if(!f) return;
