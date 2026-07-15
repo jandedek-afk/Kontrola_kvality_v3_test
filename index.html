@@ -40,12 +40,15 @@
     .info-box[hidden]{display:none}
     .num-input{width:100%;margin-top:6px;padding:10px;border-radius:8px;border:1px solid #e0e0e0;font-family:inherit;font-size:0.95rem;background:#fff}
     .num-input:focus{outline:none;border-color:var(--brand)}
-    .chip-row{display:flex;gap:8px;align-items:center;margin-top:6px}
-    .chip-row .num-input{margin-top:0;flex:1}
+    .chip-row{display:flex;gap:8px;align-items:center;margin-top:6px;flex-wrap:wrap}
+    .chip-row .num-input{margin-top:0;flex:1 1 130px}
+    .chip-row .add-x{background:#fdecec;border-color:#f3b9b9;color:#b23b3b}
+    .chip-row .add-x:hover{background:#fbdcdc}
     .add-val{white-space:nowrap;flex-shrink:0}
     .chips{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
     .chips:empty{margin-top:0}
     .chip{display:inline-flex;align-items:center;gap:6px;background:#fff;border:1px solid #cdddf3;color:#111;border-radius:999px;padding:4px 6px 4px 12px;font-size:0.9rem}
+    .chip.chip-over{background:#fdecec;border-color:#f3b9b9;color:#b23b3b}
     .chip-x{background:#e7eef9;color:#33506f;border:none;border-radius:50%;width:20px;height:20px;padding:0;font-size:0.7rem;line-height:1;cursor:pointer;display:flex;align-items:center;justify-content:center}
     .chip-x:hover{background:#d4e0f2;opacity:1}
     .verdict-box{margin-top:12px}
@@ -311,17 +314,19 @@
                   <span>📐 Rovinatost [mm]</span>
                   <button type="button" class="info-btn" id="rovinatost-info-btn" aria-label="Co znamená rovinatost" aria-expanded="false">i</button>
                 </div>
-                <div id="rovinatost-info" class="info-box" hidden>Rovinatost se měří 2m latí. Vyhovující = aspoň 75 % naměřených hodnot je do 10 mm.</div>
+                <div id="rovinatost-info" class="info-box" hidden>Rovinatost se měří 2m latí. Vyhovující = aspoň 75 % naměřených hodnot je do 10 mm. Nerovnost přes 20 mm (mimo rozsah klínku) zadej tlačítkem ✕ – počítá se jako nevyhovující bod.</div>
                 <label>Podélné měření</label>
                 <div class="chip-row">
                   <input id="longNote" class="num-input" type="text" inputmode="decimal" enterkeyhint="done" placeholder="Číslo + mezera / Enter">
                   <button type="button" class="btn-small add-val" data-target="long">+ Přidat</button>
+                  <button type="button" class="btn-small add-x" data-target="long" title="Nerovnost přes 20 mm (mimo rozsah klínku)">✕ &gt;20</button>
                 </div>
                 <div id="long-chips" class="chips"></div>
                 <label>Příčné měření</label>
                 <div class="chip-row">
                   <input id="crossNote" class="num-input" type="text" inputmode="decimal" enterkeyhint="done" placeholder="Číslo + mezera / Enter">
                   <button type="button" class="btn-small add-val" data-target="cross">+ Přidat</button>
+                  <button type="button" class="btn-small add-x" data-target="cross" title="Nerovnost přes 20 mm (mimo rozsah klínku)">✕ &gt;20</button>
                 </div>
                 <div id="cross-chips" class="chips"></div>
                 <div id="rovinatost-verdict" class="verdict-box"></div>
@@ -391,7 +396,7 @@
 
           <footer>
             Aplikace funguje offline. Data jsou uložena lokálně v zařízení (IndexedDB).<br>
-            <span style="color:var(--muted);font-size:0.95em;">Verze aplikace: v3.2.0-test · Build 2026-07-14·12</span>
+            <span style="color:var(--muted);font-size:0.95em;">Verze aplikace: v3.2.0-test · Build 2026-07-15·13</span>
           </footer>
         </main>
       </div>
@@ -1592,7 +1597,8 @@
       function parseRovinatostVals(str){
         if(!str) return [];
         return String(str).split(/[;\n]+/).map(s=>s.trim()).filter(s=>s!=='')
-          .map(s=>parseFloat(s.replace(',', '.'))).filter(v=>!isNaN(v));
+          .map(s=> /^x$/i.test(s) ? 21 : parseFloat(s.replace(',', '.'))) // „x" = přesah přes klínek (>20 mm) → nevyhovující
+          .filter(v=>!isNaN(v));
       }
       function rovinatostBadge(longStr, crossStr){
         const vals = parseRovinatostVals(longStr).concat(parseRovinatostVals(crossStr));
@@ -1924,15 +1930,17 @@
             rovinatostBadge(measureState.long.join('; '), measureState.cross.join('; '));
         }
         function renderChips(t){
-          document.getElementById(t+'-chips').innerHTML = measureState[t].map((v,i)=>
-            `<span class="chip">${escapeHtml(v)}<button type="button" class="chip-x" data-target="${t}" data-i="${i}" aria-label="Smazat">✕</button></span>`
-          ).join('');
+          document.getElementById(t+'-chips').innerHTML = measureState[t].map((v,i)=>{
+            const over = /^x$/i.test(v);
+            return `<span class="chip${over?' chip-over':''}">${over?'&gt;20 mm':escapeHtml(v)}<button type="button" class="chip-x" data-target="${t}" data-i="${i}" aria-label="Smazat">✕</button></span>`;
+          }).join('');
           updateVerdict();
         }
         // Uloží jednu hodnotu (vrací true při úspěchu)
         function commitRaw(t, raw){
           raw = (raw||'').trim();
           if(raw === '') return false;
+          if(/^x$/i.test(raw)){ measureState[t].push('x'); return true; } // přesah přes klínek (>20 mm) = nevyhovující bod
           if(isNaN(parseFloat(raw.replace(',', '.')))) return false; // nečíselný vstup ignorujeme
           measureState[t].push(raw);
           return true;
@@ -1943,6 +1951,10 @@
         }
         document.querySelectorAll('.add-val').forEach(btn=>{
           btn.addEventListener('click', ()=> addValue(btn.dataset.target));
+        });
+        // Tlačítko „✕ >20" – přidá přesah přes klínek (nevyhovující bod) bez psaní na klávesnici
+        document.querySelectorAll('.add-x').forEach(btn=>{
+          btn.addEventListener('click', ()=>{ const t=btn.dataset.target; measureState[t].push('x'); renderChips(t); valInput(t).focus(); });
         });
         ['long','cross'].forEach(t=>{
           const el = valInput(t);
