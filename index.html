@@ -71,9 +71,20 @@
     .thumb{width:100%;height:90px;object-fit:contain;background:#f4f8fe;border-radius:8px;border:1px solid #e6eef9;cursor:pointer}
     .entry .meta p{margin:2px 0;font-size:0.84rem}
     .meta{display:flex;flex-direction:column;gap:8px}
-    .meta-header{display:flex;justify-content:space-between;align-items:start;gap:8px;flex-wrap:wrap}
-    .meta-header strong{font-size:0.95rem}
+    .meta-header{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+    .meta-header strong{font-size:0.9rem}
     .meta-info{color:var(--muted);font-size:0.85rem}
+    .meta-tags{display:flex;flex-wrap:wrap;gap:3px 10px;margin-top:4px;font-size:0.82rem;color:#33414f;align-items:center}
+    .meta-tags .mt{white-space:nowrap}
+    .meta-tags .note-tag{max-width:280px;overflow:hidden;text-overflow:ellipsis}
+    .entry-menu-wrap{position:relative;margin-left:auto}
+    .entry-menu-btn{background:#eef5fe;border:1px solid #cdddf3;border-radius:8px;width:36px;height:28px;font-size:1.15rem;line-height:1;cursor:pointer;color:#33506f;padding:0}
+    .entry-menu-btn:hover{background:#e0ecfb}
+    .entry-menu{position:absolute;top:calc(100% + 4px);right:0;z-index:60;background:#fff;border:1px solid #cdddf3;border-radius:10px;box-shadow:0 8px 24px rgba(0,0,0,0.18);min-width:150px;overflow:hidden}
+    .entry-menu[hidden]{display:none}
+    .entry-menu button{display:block;width:100%;text-align:left;background:none;border:none;padding:9px 14px;font-size:0.88rem;cursor:pointer;color:#233}
+    .entry-menu button:hover{background:#eef5fe}
+    .entry-menu button.danger{color:#b23b3b}
     .meta p{margin:0;font-size:0.9rem;color:#333;line-height:1.5}
     .meta p strong{color:#111;font-size:0.88rem}
     .actions{display:flex;gap:8px;margin-top:8px;flex-wrap:wrap}
@@ -452,7 +463,7 @@
 
           <footer>
             Aplikace funguje offline. Data jsou uložena lokálně v zařízení (IndexedDB).<br>
-            <span style="color:var(--muted);font-size:0.95em;">Verze aplikace: v3.2.0-test · Build 2026-07-15·16</span>
+            <span style="color:var(--muted);font-size:0.95em;">Verze aplikace: v3.2.0-test · Build 2026-07-15·17</span>
           </footer>
         </main>
       </div>
@@ -1605,23 +1616,31 @@
         const div = document.createElement('div');
         div.className = 'entry' + (withPick ? ' pickable' : '');
         const coordsText = e.coords ? `${e.coords.lat}, ${e.coords.lon}` : 'bez polohy';
-        let notesHtml = '';
-        if (e.longNote) notesHtml += `<p><strong>📏 Podélné měření:</strong> ${escapeHtml(e.longNote)}</p>`;
-        if (e.crossNote) notesHtml += `<p><strong>↔️ Příčné měření:</strong> ${escapeHtml(e.crossNote)}</p>`;
         const rovBadge = rovinatostBadge(e.longNote, e.crossNote);
-        if (rovBadge) notesHtml += `<p><strong>📐 Rovinatost:</strong> ${rovBadge}</p>`;
-        if (e.vyjetaKolej) notesHtml += `<p><strong>🛞 Vyjetá kolej:</strong> Ano</p>`;
-        if (e.note) notesHtml += `<p><strong>📝 Poznámka:</strong> ${escapeHtml(e.note)}</p>`;
+        // Info vedle sebe (zalamovací drobné štítky) místo řádků pod sebou
+        const tags = [`<span class="mt">📁 ${escapeHtml(e.folder||'Bez složky')}</span>`, `<span class="mt">📍 ${escapeHtml(coordsText)}</span>`];
+        if (e.longNote) tags.push(`<span class="mt">📏 ${escapeHtml(e.longNote)}</span>`);
+        if (e.crossNote) tags.push(`<span class="mt">↔️ ${escapeHtml(e.crossNote)}</span>`);
+        if (rovBadge) tags.push(`<span class="mt">📐 ${rovBadge}</span>`);
+        if (e.vyjetaKolej) tags.push(`<span class="mt">🛞 kolej</span>`);
+        if (e.note) tags.push(`<span class="mt note-tag" title="${escAttr(e.note)}">📝 ${escapeHtml(e.note)}</span>`);
         const syncBadge = e.synced ? '' : '<span class="badge-unsynced">⏳ nesynch.</span>';
-        const officeBadge = `<span class="status-pill ${e.officeDone?'done':'wait'}" style="margin-left:6px">${e.officeDone?'✓ office':'⏳ office'}</span>`;
-        const folderTag = (withPick && e.folder) ? `<span class="meta-info">📁 ${escapeHtml(e.folder)}</span>` : '';
+        const officeBadge = `<span class="status-pill ${e.officeDone?'done':'wait'}">${e.officeDone?'✓ office':'⏳ office'}</span>`;
         const pick = withPick ? `<input type="checkbox" class="entry-pick" ${selectedIds.has(e.id)?'checked':''}>` : '';
-        div.innerHTML = `<div class="entry-content">${pick}<img class="thumb" src="${e.photo}" alt="foto" loading="lazy"><div class="meta"><div class="meta-header"><strong>${e.timeText}${syncBadge}${officeBadge}</strong><span class="meta-info">${coordsText}</span>${folderTag}</div>${notesHtml}<div class="actions"><button class="btn-small view-btn">Zobrazit</button><button class="btn-small danger delete-btn">Smazat</button><button class="btn-small download-btn">Stáhnout foto</button><button class="btn-small move-btn">Přesunout</button></div></div></div>`;
+        div.innerHTML = `<div class="entry-content">${pick}<img class="thumb" src="${e.photo}" alt="foto" loading="lazy"><div class="meta"><div class="meta-header"><strong>${escapeHtml(e.timeText||'')}</strong>${syncBadge}${officeBadge}<span class="entry-menu-wrap"><button type="button" class="entry-menu-btn" aria-label="Akce">⋯</button><div class="entry-menu" hidden><button type="button" class="view-btn">Zobrazit</button><button type="button" class="download-btn">Stáhnout foto</button><button type="button" class="move-btn">Přesunout</button><button type="button" class="delete-btn danger">Smazat</button></div></span></div><div class="meta-tags">${tags.join('')}</div></div></div>`;
         div.querySelector('.thumb').addEventListener('click', () => viewFull(e.id));
         div.querySelector('.view-btn').addEventListener('click', () => viewFull(e.id));
         div.querySelector('.delete-btn').addEventListener('click', async () => { if (confirm('Opravdu smazat tento záznam?')) { await deleteEntryFully(e.id); selectedIds.delete(e.id); await renderFoldersAndEntries(folderToShow); } });
         div.querySelector('.download-btn').addEventListener('click', () => downloadPhoto(e.photo, e.id));
         div.querySelector('.move-btn').addEventListener('click', () => moveEntryPrompt(e.id, folderToShow));
+        // ⋯ menu akcí
+        const menu = div.querySelector('.entry-menu');
+        div.querySelector('.entry-menu-btn').addEventListener('click', (ev)=>{
+          ev.stopPropagation();
+          const wasHidden = menu.hidden;
+          document.querySelectorAll('.entry-menu').forEach(m=> m.hidden = true);
+          menu.hidden = !wasHidden;
+        });
         if(withPick){
           const cb = div.querySelector('.entry-pick');
           cb.addEventListener('change', ()=>{ if(cb.checked) selectedIds.add(e.id); else selectedIds.delete(e.id); updateBulkBar(); });
@@ -2256,6 +2275,7 @@
         const exportMenu = document.getElementById('export-menu');
         document.getElementById('exportBtn').addEventListener('click', (e)=>{ e.stopPropagation(); exportMenu.hidden = !exportMenu.hidden; });
         document.addEventListener('click', (e)=>{ if(!e.target.closest('.export-wrap')) exportMenu.hidden = true; });
+        document.addEventListener('click', ()=> document.querySelectorAll('.entry-menu:not([hidden])').forEach(m=> m.hidden = true)); // zavři ⋯ menu klikem jinam
         exportMenu.querySelectorAll('button[data-export]').forEach(b=> b.addEventListener('click', async ()=>{
           exportMenu.hidden = true;
           try{
