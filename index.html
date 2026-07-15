@@ -356,6 +356,7 @@
               <button id="backToFoldersBtn" type="button" class="btn-secondary" style="display: none;">Zpět na složky</button>
               <button id="exportBtn" type="button" class="btn-secondary">Exportovat data</button>
               <button id="importBtn" type="button" class="btn-secondary">Importovat data</button>
+              <button id="shrinkBtn" type="button" class="btn-secondary">🗜️ Zmenšit velké fotky</button>
               <button id="clearAll" type="button" class="btn-secondary">Vymazat vše</button>
               <input type="file" id="importFile" accept=".json" style="display: none;">
             </div>
@@ -396,7 +397,7 @@
 
           <footer>
             Aplikace funguje offline. Data jsou uložena lokálně v zařízení (IndexedDB).<br>
-            <span style="color:var(--muted);font-size:0.95em;">Verze aplikace: v3.2.0-test · Build 2026-07-15·13</span>
+            <span style="color:var(--muted);font-size:0.95em;">Verze aplikace: v3.2.0-test · Build 2026-07-15·14</span>
           </footer>
         </main>
       </div>
@@ -587,6 +588,14 @@
       }
       function blobToDataURL(blob){
         return new Promise((res, rej)=>{ const fr=new FileReader(); fr.onload=()=>res(fr.result); fr.onerror=()=>rej(fr.error); fr.readAsDataURL(blob); });
+      }
+      // Zmenší fotku uloženou jako base64 (např. z importu plných fotek) – jinak se nenahraje do cloudu.
+      // Malé (~<0,9 MB) nebo neobrázkové ponechá beze změny.
+      async function shrinkPhotoDataURL(dataURL){
+        if(!dataURL || typeof dataURL !== 'string' || !dataURL.startsWith('data:image')) return dataURL;
+        if(dataURL.length < 1200000) return dataURL; // už dost malé
+        try{ return await compressImage(dataURLtoBlob(dataURL)); }
+        catch(e){ console.warn('shrinkPhotoDataURL selhal:', e && e.message ? e.message : e); return dataURL; }
       }
 
       function setSyncStatus(text){ const el=document.getElementById('sync-status'); if(el) el.textContent = text; }
@@ -2049,7 +2058,52 @@
         });
         document.getElementById('exportBtn').addEventListener('click', async ()=>{ const data = await getAllEntries(); const dateStr = new Date().toISOString().split('T')[0]; const a=document.createElement('a'); a.href = URL.createObjectURL(new Blob([JSON.stringify(data,null,2)],{type:'application/json'})); a.download=`kontrolakvality_${dateStr}.json`; document.body.appendChild(a); a.click(); a.remove(); });
         document.getElementById('importBtn').addEventListener('click', ()=> document.getElementById('importFile').click());
-        document.getElementById('importFile').addEventListener('change', async (ev)=>{ const f=ev.target.files[0]; if(!f) return; const txt = await f.text(); try{ const arr = JSON.parse(txt); for(const it of arr){ try{ await addEntry(it); }catch(e){} } await renderFoldersAndEntries(); alert('Import dokončen.'); }catch(err){ alert('Chyba importu: '+err.message); } });
+        document.getElementById('importFile').addEventListener('change', async (ev)=>{
+          const f=ev.target.files[0]; if(!f) return;
+          const txt = await f.text();
+          try{
+            const arr = JSON.parse(txt);
+            let n=0;
+            for(let i=0;i<arr.length;i++){
+              const it = arr[i];
+              setSyncStatus(`Import: zpracovávám ${i+1}/${arr.length}…`);
+              try{
+                if(it.photo) it.photo = await shrinkPhotoDataURL(it.photo);       // plné fotky z importu zmenši (jinak se nenahrají)
+                if(it.afterPhoto) it.afterPhoto = await shrinkPhotoDataURL(it.afterPhoto);
+                it.synced = false;                                               // ať se naimportované záznamy nahrají do cloudu
+                await addEntry(it); n++;
+              }catch(e){ /* duplicitní id nebo chyba jednoho záznamu – přeskoč */ }
+            }
+            await renderFoldersAndEntries();
+            setSyncStatus('');
+            alert(`Import dokončen (${n} záznamů). Fotky zmenšeny pro synchronizaci.`);
+            if(navigator.onLine) syncNow();
+          }catch(err){ alert('Chyba importu: '+err.message); }
+          finally{ ev.target.value=''; }
+        });
+
+        // Zmenší velké fotky u už uložených záznamů (typicky z dřívějšího importu plných fotek) → umožní synchronizaci
+        document.getElementById('shrinkBtn').addEventListener('click', async ()=>{
+          const all = await getAllEntries();
+          const big = all.filter(e => (e.photo && e.photo.length > 1200000) || (e.afterPhoto && e.afterPhoto.length > 1200000));
+          if(!big.length){ alert('Žádné velké fotky k zmenšení. Vše je připravené k synchronizaci.'); return; }
+          if(!confirm(`Nalezeno ${big.length} záznamů s velkou fotkou. Zmenšit je kvůli synchronizaci?\n\nFotky se trvale zmenší (kvalita jako u běžného focení). Ostatní data (office, měření) zůstanou beze změny.`)) return;
+          let done=0;
+          for(const e of big){
+            setSyncStatus(`Zmenšuji fotky… ${done+1}/${big.length}`);
+            try{
+              if(e.photo && e.photo.length > 1200000) e.photo = await shrinkPhotoDataURL(e.photo);
+              if(e.afterPhoto && e.afterPhoto.length > 1200000) e.afterPhoto = await shrinkPhotoDataURL(e.afterPhoto);
+              e.synced = false; // znovu k nahrání
+              await updateEntry(e);
+              done++;
+            }catch(err){ console.warn('shrink záznamu selhal', e.id, err && err.message ? err.message : err); }
+          }
+          await renderFoldersAndEntries();
+          setSyncStatus('');
+          alert(`Zmenšeno ${done} záznamů. Spouštím synchronizaci…`);
+          if(navigator.onLine) syncNow();
+        });
 
         // registrace service workeru (tiché aktualizace, bez promptu)
         if('serviceWorker' in navigator){
