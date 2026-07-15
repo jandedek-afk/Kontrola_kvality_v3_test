@@ -64,10 +64,12 @@
     .btn-danger{background:var(--danger)}
     #status{margin-left:8px;color:var(--muted);font-size:0.9rem}
     .entries{margin-top:1.5rem;display:grid;gap:1rem}
-    .entry{background:#fff;padding:1rem;border-radius:12px;box-shadow:0 2px 6px rgba(0,0,0,0.04);display:grid;gap:1rem;transition:box-shadow 0.2s}
+    .entry{background:#fff;padding:0.55rem 0.8rem;border-radius:12px;box-shadow:0 2px 6px rgba(0,0,0,0.04);display:grid;gap:0.4rem;transition:box-shadow 0.2s}
     .entry:hover{box-shadow:0 4px 12px rgba(0,0,0,0.08)}
-    .entry-content{display:grid;grid-template-columns:140px 1fr;gap:1rem;align-items:start}
-    .thumb{width:100%;height:100px;object-fit:cover;border-radius:8px;border:1px solid #e6eef9}
+    .entry-content{display:grid;grid-template-columns:150px 1fr;gap:0.9rem;align-items:center}
+    .entry.pickable .entry-content{grid-template-columns:26px 150px 1fr}
+    .thumb{width:100%;height:90px;object-fit:contain;background:#f4f8fe;border-radius:8px;border:1px solid #e6eef9;cursor:pointer}
+    .entry .meta p{margin:2px 0;font-size:0.84rem}
     .meta{display:flex;flex-direction:column;gap:8px}
     .meta-header{display:flex;justify-content:space-between;align-items:start;gap:8px;flex-wrap:wrap}
     .meta-header strong{font-size:0.95rem}
@@ -95,7 +97,7 @@
     #viewer-body .meta{font-size:1rem;color:var(--muted);margin-bottom:8px}
     #viewer-body .field{background:#f9f9f9;padding:12px;border-left:4px solid var(--brand);border-radius:6px;margin-top:10px}
     /* update banner */
-    @media (max-width:768px){body{padding:0.75rem}.thumb{height:80px}.entry-content{grid-template-columns:100px 1fr}}
+    @media (max-width:768px){body{padding:0.75rem}.thumb{height:76px}.entry-content{grid-template-columns:110px 1fr}.entry.pickable .entry-content{grid-template-columns:24px 110px 1fr}}
     /* login */
     #login-overlay{position:fixed;inset:0;background:#f5f7fa;display:flex;align-items:center;justify-content:center;z-index:20000;padding:1rem}
     #login-box{background:#fff;padding:1.5rem;border-radius:12px;box-shadow:0 8px 24px rgba(0,0,0,0.12);max-width:360px;width:100%}
@@ -202,7 +204,7 @@
     .bulk-bar{display:flex;gap:10px;flex-wrap:wrap;align-items:center;background:#eef5fe;border:1px solid #cdddf3;border-radius:10px;padding:8px 12px;margin-bottom:1rem;font-size:0.86rem}
     .bulk-bar[hidden]{display:none}
     .bulk-bar .bulk-count{font-weight:600;color:#33506f}
-    .entry .entry-pick{margin-right:8px;transform:scale(1.3);cursor:pointer;align-self:flex-start;margin-top:4px}
+    .entry .entry-pick{align-self:center;transform:scale(1.3);cursor:pointer}
     /* Export menu */
     .export-wrap{position:relative;display:inline-block}
     .export-menu{position:absolute;top:calc(100% + 4px);left:0;z-index:50;background:#fff;border:1px solid #cdddf3;border-radius:10px;box-shadow:0 8px 24px rgba(0,0,0,0.18);min-width:220px;overflow:hidden}
@@ -450,7 +452,7 @@
 
           <footer>
             Aplikace funguje offline. Data jsou uložena lokálně v zařízení (IndexedDB).<br>
-            <span style="color:var(--muted);font-size:0.95em;">Verze aplikace: v3.2.0-test · Build 2026-07-15·15</span>
+            <span style="color:var(--muted);font-size:0.95em;">Verze aplikace: v3.2.0-test · Build 2026-07-15·16</span>
           </footer>
         </main>
       </div>
@@ -1601,7 +1603,7 @@
       // Sestaví kartu jednoho záznamu (sdílené pro složkový seznam i filtrovaný seznam)
       function buildEntryCard(e, folderToShow, withPick){
         const div = document.createElement('div');
-        div.className = 'entry';
+        div.className = 'entry' + (withPick ? ' pickable' : '');
         const coordsText = e.coords ? `${e.coords.lat}, ${e.coords.lon}` : 'bez polohy';
         let notesHtml = '';
         if (e.longNote) notesHtml += `<p><strong>📏 Podélné měření:</strong> ${escapeHtml(e.longNote)}</p>`;
@@ -1614,7 +1616,8 @@
         const officeBadge = `<span class="status-pill ${e.officeDone?'done':'wait'}" style="margin-left:6px">${e.officeDone?'✓ office':'⏳ office'}</span>`;
         const folderTag = (withPick && e.folder) ? `<span class="meta-info">📁 ${escapeHtml(e.folder)}</span>` : '';
         const pick = withPick ? `<input type="checkbox" class="entry-pick" ${selectedIds.has(e.id)?'checked':''}>` : '';
-        div.innerHTML = `<div class="entry-content">${pick}<img class="thumb" src="${e.photo}" alt="foto"><div class="meta"><div class="meta-header"><strong>${e.timeText}${syncBadge}${officeBadge}</strong><span class="meta-info">${coordsText}</span>${folderTag}</div>${notesHtml}<div class="actions"><button class="btn-small view-btn">Zobrazit</button><button class="btn-small danger delete-btn">Smazat</button><button class="btn-small download-btn">Stáhnout foto</button><button class="btn-small move-btn">Přesunout</button></div></div></div>`;
+        div.innerHTML = `<div class="entry-content">${pick}<img class="thumb" src="${e.photo}" alt="foto" loading="lazy"><div class="meta"><div class="meta-header"><strong>${e.timeText}${syncBadge}${officeBadge}</strong><span class="meta-info">${coordsText}</span>${folderTag}</div>${notesHtml}<div class="actions"><button class="btn-small view-btn">Zobrazit</button><button class="btn-small danger delete-btn">Smazat</button><button class="btn-small download-btn">Stáhnout foto</button><button class="btn-small move-btn">Přesunout</button></div></div></div>`;
+        div.querySelector('.thumb').addEventListener('click', () => viewFull(e.id));
         div.querySelector('.view-btn').addEventListener('click', () => viewFull(e.id));
         div.querySelector('.delete-btn').addEventListener('click', async () => { if (confirm('Opravdu smazat tento záznam?')) { await deleteEntryFully(e.id); selectedIds.delete(e.id); await renderFoldersAndEntries(folderToShow); } });
         div.querySelector('.download-btn').addEventListener('click', () => downloadPhoto(e.photo, e.id));
