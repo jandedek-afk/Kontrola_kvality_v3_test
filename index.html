@@ -80,11 +80,26 @@
     .entry-menu-wrap{position:relative;margin-left:auto}
     .entry-menu-btn{background:#eef5fe;border:1px solid #cdddf3;border-radius:8px;width:36px;height:28px;font-size:1.15rem;line-height:1;cursor:pointer;color:#33506f;padding:0}
     .entry-menu-btn:hover{background:#e0ecfb}
-    .entry-menu{position:absolute;top:calc(100% + 4px);right:0;z-index:60;background:#fff;border:1px solid #cdddf3;border-radius:10px;box-shadow:0 8px 24px rgba(0,0,0,0.18);min-width:150px;overflow:hidden}
+    .entry-menu{position:fixed;z-index:9600;background:#fff;border:1px solid #cdddf3;border-radius:10px;box-shadow:0 8px 24px rgba(0,0,0,0.18);min-width:150px;overflow:hidden}
     .entry-menu[hidden]{display:none}
     .entry-menu button{display:block;width:100%;text-align:left;background:none;border:none;padding:9px 14px;font-size:0.88rem;cursor:pointer;color:#233}
     .entry-menu button:hover{background:#eef5fe}
     .entry-menu button.danger{color:#b23b3b}
+    /* Tabulka záznamů (zarovnané sloupce) */
+    .zn-table-wrap{overflow-x:auto;background:#fff;border-radius:12px;box-shadow:0 2px 6px rgba(0,0,0,0.04)}
+    .zn-table{width:100%;border-collapse:collapse;font-size:0.84rem}
+    .zn-table thead th{background:#eef5fe;color:#33506f;font-weight:600;text-align:left;padding:8px 10px;white-space:nowrap;border-bottom:2px solid #cdddf3;font-size:0.8rem}
+    .zn-table td{padding:6px 10px;border-bottom:1px solid #eef1f6;vertical-align:middle}
+    .zn-table tbody tr:hover{background:#f7fafe}
+    .zn-table .c-foto{width:110px}
+    .zn-table .thumb-sm{width:100px;height:52px;object-fit:contain;background:#f4f8fe;border-radius:6px;border:1px solid #e6eef9;cursor:pointer;display:block}
+    .zn-table .c-pick{width:30px;text-align:center}
+    .zn-table .c-act{width:44px}
+    .zn-table .c-office{text-align:center}
+    .zn-table .c-date{white-space:nowrap}
+    .zn-table .c-gps{white-space:nowrap;color:var(--muted);font-size:0.8rem}
+    .zn-table .cell-clip{max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+    .zn-table .entry-pick{transform:scale(1.2);cursor:pointer}
     .meta p{margin:0;font-size:0.9rem;color:#333;line-height:1.5}
     .meta p strong{color:#111;font-size:0.88rem}
     .actions{display:flex;gap:8px;margin-top:8px;flex-wrap:wrap}
@@ -463,7 +478,7 @@
 
           <footer>
             Aplikace funguje offline. Data jsou uložena lokálně v zařízení (IndexedDB).<br>
-            <span style="color:var(--muted);font-size:0.95em;">Verze aplikace: v3.2.0-test · Build 2026-07-15·17</span>
+            <span style="color:var(--muted);font-size:0.95em;">Verze aplikace: v3.2.0-test · Build 2026-07-15·18</span>
           </footer>
         </main>
       </div>
@@ -1611,41 +1626,56 @@
         }
       }
 
-      // Sestaví kartu jednoho záznamu (sdílené pro složkový seznam i filtrovaný seznam)
-      function buildEntryCard(e, folderToShow, withPick){
-        const div = document.createElement('div');
-        div.className = 'entry' + (withPick ? ' pickable' : '');
-        const coordsText = e.coords ? `${e.coords.lat}, ${e.coords.lon}` : 'bez polohy';
-        const rovBadge = rovinatostBadge(e.longNote, e.crossNote);
-        // Info vedle sebe (zalamovací drobné štítky) místo řádků pod sebou
-        const tags = [`<span class="mt">📁 ${escapeHtml(e.folder||'Bez složky')}</span>`, `<span class="mt">📍 ${escapeHtml(coordsText)}</span>`];
-        if (e.longNote) tags.push(`<span class="mt">📏 ${escapeHtml(e.longNote)}</span>`);
-        if (e.crossNote) tags.push(`<span class="mt">↔️ ${escapeHtml(e.crossNote)}</span>`);
-        if (rovBadge) tags.push(`<span class="mt">📐 ${rovBadge}</span>`);
-        if (e.vyjetaKolej) tags.push(`<span class="mt">🛞 kolej</span>`);
-        if (e.note) tags.push(`<span class="mt note-tag" title="${escAttr(e.note)}">📝 ${escapeHtml(e.note)}</span>`);
-        const syncBadge = e.synced ? '' : '<span class="badge-unsynced">⏳ nesynch.</span>';
-        const officeBadge = `<span class="status-pill ${e.officeDone?'done':'wait'}">${e.officeDone?'✓ office':'⏳ office'}</span>`;
-        const pick = withPick ? `<input type="checkbox" class="entry-pick" ${selectedIds.has(e.id)?'checked':''}>` : '';
-        div.innerHTML = `<div class="entry-content">${pick}<img class="thumb" src="${e.photo}" alt="foto" loading="lazy"><div class="meta"><div class="meta-header"><strong>${escapeHtml(e.timeText||'')}</strong>${syncBadge}${officeBadge}<span class="entry-menu-wrap"><button type="button" class="entry-menu-btn" aria-label="Akce">⋯</button><div class="entry-menu" hidden><button type="button" class="view-btn">Zobrazit</button><button type="button" class="download-btn">Stáhnout foto</button><button type="button" class="move-btn">Přesunout</button><button type="button" class="delete-btn danger">Smazat</button></div></span></div><div class="meta-tags">${tags.join('')}</div></div></div>`;
-        div.querySelector('.thumb').addEventListener('click', () => viewFull(e.id));
-        div.querySelector('.view-btn').addEventListener('click', () => viewFull(e.id));
-        div.querySelector('.delete-btn').addEventListener('click', async () => { if (confirm('Opravdu smazat tento záznam?')) { await deleteEntryFully(e.id); selectedIds.delete(e.id); await renderFoldersAndEntries(folderToShow); } });
-        div.querySelector('.download-btn').addEventListener('click', () => downloadPhoto(e.photo, e.id));
-        div.querySelector('.move-btn').addEventListener('click', () => moveEntryPrompt(e.id, folderToShow));
-        // ⋯ menu akcí
-        const menu = div.querySelector('.entry-menu');
-        div.querySelector('.entry-menu-btn').addEventListener('click', (ev)=>{
-          ev.stopPropagation();
-          const wasHidden = menu.hidden;
-          document.querySelectorAll('.entry-menu').forEach(m=> m.hidden = true);
-          menu.hidden = !wasHidden;
+      async function getEntryById(id){ const all = await getAllEntries(); return all.find(x=>x.id===id); }
+
+      // Jeden záznam → řádek tabulky (hodnoty zarovnané do sloupců)
+      function buildEntryRow(e, withPick){
+        const coordsText = e.coords ? `${e.coords.lat}, ${e.coords.lon}` : '—';
+        const rovBadge = rovinatostBadge(e.longNote, e.crossNote) || '—';
+        const syncBadge = e.synced ? '' : ' <span class="badge-unsynced">⏳</span>';
+        const officeBadge = `<span class="status-pill ${e.officeDone?'done':'wait'}">${e.officeDone?'✓':'⏳'}</span>`;
+        const pick = withPick ? `<td class="c-pick"><input type="checkbox" class="entry-pick" data-id="${escAttr(e.id)}" ${selectedIds.has(e.id)?'checked':''}></td>` : '';
+        return `<tr data-id="${escAttr(e.id)}">
+          ${pick}
+          <td class="c-foto"><img class="thumb-sm" src="${e.photo}" alt="foto" loading="lazy" data-act="view"></td>
+          <td class="c-date">${escapeHtml(e.timeText||'')}${syncBadge}</td>
+          <td>${escapeHtml(e.folder||'Bez složky')}</td>
+          <td class="c-gps">${escapeHtml(coordsText)}</td>
+          <td>${escapeHtml(e.longNote||'—')}</td>
+          <td>${escapeHtml(e.crossNote||'—')}</td>
+          <td>${rovBadge}</td>
+          <td class="c-note"><div class="cell-clip" title="${escAttr(e.note||'')}">${escapeHtml(e.note||'—')}</div></td>
+          <td class="c-office">${officeBadge}</td>
+          <td class="c-act"><span class="entry-menu-wrap"><button type="button" class="entry-menu-btn" data-act="menu" aria-label="Akce">⋯</button><div class="entry-menu" hidden><button type="button" data-act="view">Zobrazit</button><button type="button" data-act="download">Stáhnout foto</button><button type="button" data-act="move">Přesunout</button><button type="button" data-act="delete" class="danger">Smazat</button></div></span></td>
+        </tr>`;
+      }
+      // Tabulka záznamů se záhlavím sloupců
+      function buildEntriesTable(entries, withPick){
+        const head = `<thead><tr>${withPick?'<th class="c-pick"></th>':''}<th class="c-foto">Foto</th><th>Datum a čas</th><th>Složka</th><th>GPS</th><th>Podélné</th><th>Příčné</th><th>Rovinatost</th><th>Poznámka</th><th class="c-office">Office</th><th class="c-act"></th></tr></thead>`;
+        return `<div class="zn-table-wrap"><table class="zn-table">${head}<tbody>${entries.map(e=> buildEntryRow(e, withPick)).join('')}</tbody></table></div>`;
+      }
+      // Delegované ovládání tabulky (klik na akce/menu, checkbox)
+      function wireEntriesTable(container, folderToShow){
+        container.querySelectorAll('.entry-pick').forEach(cb=> cb.addEventListener('change', ()=>{ const id=cb.dataset.id; if(cb.checked) selectedIds.add(id); else selectedIds.delete(id); updateBulkBar(); }));
+        container.addEventListener('click', async (ev)=>{
+          const act = ev.target.closest('[data-act]'); if(!act) return;
+          const tr = ev.target.closest('tr[data-id]'); if(!tr) return;
+          const id = tr.dataset.id;
+          switch(act.dataset.act){
+            case 'view': viewFull(id); break;
+            case 'menu': {
+              ev.stopPropagation();
+              const menu = tr.querySelector('.entry-menu');
+              const wasHidden = menu.hidden;
+              document.querySelectorAll('.entry-menu').forEach(m=> m.hidden = true);
+              if(wasHidden){ const r = act.getBoundingClientRect(); menu.style.top = (r.bottom+4)+'px'; menu.style.left = Math.max(8, Math.min(r.right-150, window.innerWidth-158))+'px'; menu.hidden = false; }
+              break;
+            }
+            case 'download': { const e = await getEntryById(id); if(e) downloadPhoto(e.photo, id); break; }
+            case 'move': moveEntryPrompt(id, folderToShow); break;
+            case 'delete': if(confirm('Opravdu smazat tento záznam?')){ await deleteEntryFully(id); selectedIds.delete(id); await renderFoldersAndEntries(folderToShow); } break;
+          }
         });
-        if(withPick){
-          const cb = div.querySelector('.entry-pick');
-          cb.addEventListener('change', ()=>{ if(cb.checked) selectedIds.add(e.id); else selectedIds.delete(e.id); updateBulkBar(); });
-        }
-        return div;
       }
 
       // Vykreslí plochý filtrovaný seznam (napříč složkami) + stránkování + hromadné akce
@@ -1657,8 +1687,8 @@
         foldersEl.innerHTML = '';
         lastFiltered = sortEntriesArr((allEntries || await getAllEntries()).filter(entryMatchesFilter));
         const shown = lastFiltered.slice(0, filterState.page * PAGE_SIZE);
-        entriesEl.innerHTML = '';
-        shown.forEach(e => entriesEl.appendChild(buildEntryCard(e, null, true)));
+        entriesEl.innerHTML = buildEntriesTable(shown, true);
+        wireEntriesTable(entriesEl, null);
         const cnt = document.getElementById('filter-count');
         cnt.hidden = false;
         cnt.textContent = `Zobrazeno ${shown.length} z ${lastFiltered.length} vyfiltrovaných záznamů`;
@@ -1810,7 +1840,8 @@
             backBtn.style.display = 'block';
             foldersEl.innerHTML = `<h2>Složka: ${escapeHtml(folderToShow)}</h2>`;
             const entriesInFolder = allEntries.filter(e => (e.folder || 'Bez složky') === folderToShow);
-            entriesInFolder.forEach(e => entriesEl.appendChild(buildEntryCard(e, folderToShow, false)));
+            entriesEl.innerHTML = buildEntriesTable(entriesInFolder, false);
+            wireEntriesTable(entriesEl, folderToShow);
             statusEl.textContent = `${entriesInFolder.length} ${entriesInFolder.length === 1 ? 'záznam' : 'záznamy'}`;
         }
     }
