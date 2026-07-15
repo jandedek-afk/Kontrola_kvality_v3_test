@@ -76,6 +76,31 @@
 - **Office data SE SYNCHRONIZUJÍ do cloudu** (migrace sloupců `office/after_photo/vyjeta_kolej/inspectors/office_done` **byla spuštěna** v Supabase). `pushEntry` má pojistku pro starou DB (uloží aspoň základní pole).
 - **Nastavení:** správa „Kontrolujících osob" (rozklikávací pole).
 - **Next steps:**
-  - **úklid cloudu** (mazat synchronizované řádky → udržet free tier) — stále nehotové, priorita;
-  - generování PDF protokolu z kompletního záznamu; souhrn/databáze kontrol (odloženo);
+  - **úklid cloudu** (mazat synchronizované řádky → udržet free tier) — stále nehotové, **priorita**; viz „Plánované práce" níže;
+  - **SQL migrace odvozených sloupců + indexů** (server-side filtr/report) — odloženo, viz „Plánované práce" níže;
+  - generování **PDF protokolu** z kompletního záznamu (vzor: list `Protokol_VZOR` ve stávajícím xlsm) — odloženo;
   - založit produkční Supabase projekt + zapnout potvrzování e-mailu; povýšit v3 do ostrého provozu.
+
+## Plánované práce (do budoucna – NENÍ hotové)
+Poznámky z domluvy s uživatelem (2026-07-15), ať se na to nezapomene:
+
+### 1) Úklid cloudu (priorita – reálně šetří kapacitu)
+- **Problém:** free tier Supabase = 500 MB DB; místo žerou hlavně **base64 fotky a PDF** (`photo` ~0,3–0,5 MB, `after_photo` + `office.repairs[].pdf` ~1–2 MB/záznam). Architektura je **PC = trvalý archiv, cloud = průběžná schránka** → synchronizované řádky se z cloudu mají mazat, ale úklid **není hotový**.
+- **Směr řešení (návrh):** po úspěšném stažení na „archivní" zařízení (PC) mazat staré synchronizované řádky z cloudu; ohlídat náhrobky (`kk_deleted`), ať se přes `pullFromCloud` nevrátí; nemazat rozpracované (`synced:false`).
+- Pozor na scénář, kdy záznam ještě nestáhla všechna zařízení – nemazat předčasně.
+
+### 2) SQL migrace – odvozené sloupce + indexy (odloženo, ne kvůli kapacitě)
+- **Co:** v Supabase přidat do `public.entries` sloupce `GENERATED ALWAYS AS (...) STORED` odvozené z `office` (jsonb zůstává zdroj pravdy, appka nic nezapisuje dvakrát) + indexy (GIN fulltext, btree na time/folder/office_done/owner). Bezpečné pouštět opakovaně (`add column if not exists`).
+- **Kapacita:** přírůstek zanedbatelný (~2–3 kB/záznam vs. ~0,3–2 MB fotky) → **nevyžaduje větší tier**. Kapacitu řeší bod 1, ne tohle.
+- **K čemu:** rychlé filtrování/hledání a reporty **přímo nad cloudovou DB** (mimo appku). **Teď netřeba** – filtrování i export XLSX/JSON běží lokálně v appce (Build 15).
+- **DŮLEŽITÉ – klíče v `office` jsou snake_case česky, ne camelCase z původního plánu.** Mapování a výrazy (ověřeno v index.html `OFFICE_SCHEMA`):
+  - `repair_id` ← `office->>'id_cev'` (text)
+  - `reklamace` ← `office->>'reklamace'` (text: `'Záruka byla poskytnuta'` / `'…nebyla…'`)
+  - `byl_troxler` ← `(office->>'troxler_pouzit') = 'Ano'` (**ne `::boolean`** – hodnota je `'Ano'`/`'Ne'`)
+  - `byl_vyvrt` ← `(office->>'vyvrt_proveden') = 'Ano'`
+  - „oprava vyhovující" **nemá přímé pole** – vynecháno (příp. odvodit z `troxler_vyhovuje` / `rovinatost_verdikt`, zvlášť dořešit)
+  - fulltext `search_vector` z: `note, long_note, cross_note, inspectors, folder, office->>'id_cev'`
+- **Před spuštěním migrace / změnou DB schématu se vždy ptát** (viz pravidla výše).
+
+### 3) PDF protokol jednotlivého záznamu (odloženo)
+- Tlačítko v detailu záznamu → vygenerovat PDF protokol dle vzoru `Protokol_VZOR`. Knihovna z CDN (bez build kroku).
