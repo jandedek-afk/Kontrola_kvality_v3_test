@@ -481,7 +481,7 @@
 
           <footer>
             Aplikace funguje offline. Data jsou uložena lokálně v zařízení (IndexedDB).<br>
-            <span style="color:var(--muted);font-size:0.95em;">Verze aplikace: v3.2.0-test · Build 2026-07-20·21</span>
+            <span style="color:var(--muted);font-size:0.95em;">Verze aplikace: v3.2.0-test · Build 2026-07-20·22</span>
           </footer>
         </main>
       </div>
@@ -1789,7 +1789,8 @@
         if(!vals.length) return null;
         return vals.filter(v=>v<=10).length/vals.length >= 0.75;
       }
-      function loadLogoSrc(){ return new Promise(res=>{ const im=new Image(); im.onload=()=>res('logo_futtec.png'); im.onerror=()=>res(''); im.src='logo_futtec.png?v='+Date.now(); }); }
+      const PROTOCOL_LOGO = 'FT-LOGO-nove1.png';
+      function loadLogoSrc(){ return new Promise(res=>{ const im=new Image(); im.onload=()=>res(PROTOCOL_LOGO); im.onerror=()=>res(''); im.src=PROTOCOL_LOGO+'?v='+Date.now(); }); }
       function buildProtocolHtml(entry, o, afterPhoto, checkPhoto, logoSrc){
         const V = x => (x && String(x).trim()) ? escapeHtml(x) : 'N/A';
         const spl = rovinatostSplnuje(entry.longNote, entry.crossNote);
