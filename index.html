@@ -481,7 +481,7 @@
 
           <footer>
             Aplikace funguje offline. Data jsou uložena lokálně v zařízení (IndexedDB).<br>
-            <span style="color:var(--muted);font-size:0.95em;">Verze aplikace: v3.2.0-test · Build 2026-07-20·19</span>
+            <span style="color:var(--muted);font-size:0.95em;">Verze aplikace: v3.2.0-test · Build 2026-07-20·20</span>
           </footer>
         </main>
       </div>
@@ -1158,6 +1158,7 @@
 
             <div class="office-actions">
               <button type="button" id="office-save">Uložit office část</button>
+              <button type="button" class="btn-secondary" id="office-protocol">📄 Protokol (PDF)</button>
               <button type="button" class="btn-secondary" id="office-cancel">Zrušit</button>
               <span id="office-msg" class="hint"></span>
             </div>
@@ -1217,6 +1218,14 @@
         body.querySelector('#office-back').addEventListener('click', ()=> history.back());
         body.querySelector('#office-cancel').addEventListener('click', ()=> history.back());
         body.querySelector('#office-save').addEventListener('click', ()=> saveOffice(body, entry));
+        body.querySelector('#office-protocol').addEventListener('click', async ()=>{
+          const msg = document.getElementById('office-msg');
+          const o = { ...(entry.office||{}), ...readOfficeForm(body) };
+          o.rovinatost_verdikt = rovinatostVerdiktText(entry.longNote, entry.crossNote);
+          const afterPhoto = officePhotos.afterPhoto || entry.afterPhoto || '';
+          try{ msg.textContent = 'Generuji protokol…'; await generateProtocolPdf(entry, o, afterPhoto, entry.photo); msg.textContent = '✓ protokol vygenerován'; }
+          catch(err){ console.error('protokol:', err); msg.textContent = '✕ ' + (err.message||err); }
+        });
       }
 
       // Nastaví hodnotu radia v office formuláři (+ vizuální označení)
@@ -1753,6 +1762,108 @@
       }
       // Množina pro hlavní export = aktuálně vyfiltrovaná (nebo vše, když filtr není)
       async function currentExportSet(){ return filterActive() ? await getFilteredEntries() : await getAllEntries(); }
+
+      // ---- PDF protokol jednotlivého záznamu (dle vzoru Protokol_kontrola_kvality) ----
+      function ensureLib(check, url){ return check() ? Promise.resolve() : new Promise((res,rej)=>{ const s=document.createElement('script'); s.src=url; s.onload=res; s.onerror=()=>rej(new Error('Nelze načíst knihovnu (offline?)')); document.head.appendChild(s); }); }
+      function parseDateAny(s){
+        if(!s) return null; s=String(s);
+        let m=s.match(/(\d{4})-(\d{2})-(\d{2})/); if(m) return new Date(+m[1],+m[2]-1,+m[3]);
+        m=s.match(/(\d{1,2})\.\s*(\d{1,2})\.\s*(\d{4})/); if(m) return new Date(+m[3],+m[2]-1,+m[1]);
+        return null;
+      }
+      function formatIsoCz(s){ const d=parseDateAny(s); if(!d) return s||''; const p=n=>String(n).padStart(2,'0'); return `${p(d.getDate())}.${p(d.getMonth()+1)}.${d.getFullYear()}`; }
+      // Stáří opravy = od data ukončení opravy (z pole „oprava") do data kontroly
+      function repairAgeText(o){
+        const done=parseDateAny(o.oprava), check=parseDateAny(o.datum_kontroly);
+        if(!done||!check) return '';
+        let months=(check.getFullYear()-done.getFullYear())*12+(check.getMonth()-done.getMonth());
+        if(check.getDate()<done.getDate()) months--;
+        if(months<0) months=0;
+        if(months===0) return 'méně než měsíc';
+        if(months===1) return '1 měsíc';
+        if(months>=2 && months<=4) return months+' měsíce';
+        return months+' měsíců';
+      }
+      function rovinatostSplnuje(longStr, crossStr){
+        const vals=parseRovinatostVals(longStr).concat(parseRovinatostVals(crossStr));
+        if(!vals.length) return null;
+        return vals.filter(v=>v<=10).length/vals.length >= 0.75;
+      }
+      function buildProtocolHtml(entry, o, afterPhoto, checkPhoto){
+        const V = x => (x && String(x).trim()) ? escapeHtml(x) : 'N/A';
+        const spl = rovinatostSplnuje(entry.longNote, entry.crossNote);
+        const rovLine = spl===null ? 'Rovinatost nebyla změřena' : (spl ? 'Oprava splňuje limity rovinatosti' : 'Oprava nesplňuje limity rovinatosti');
+        const troxlerLine = (o.troxler_pouzit==='Ano')
+          ? `Měření zhutnění (Troxler): ${escapeHtml(o.troxler_hodnoty||'—')}${o.troxler_vyhovuje?(' – '+escapeHtml(o.troxler_vyhovuje)):''}`
+          : 'Nebylo provedeno měření zhutnění (Troxler)';
+        const vyvrtLine = (o.vyvrt_proveden==='Ano')
+          ? `Vývrt proveden: tloušťka ${escapeHtml(o.vyvrt_tloustka||'—')}; spojení vrstev ${escapeHtml(o.spojeni_vrstev||'—')}; na hraně ${escapeHtml(o.spojeni_hrana||'—')}; mezerovitost ${escapeHtml(o.mezerovitost||'—')}`
+          : 'Nebyl proveden vývrt';
+        const poznParts=[]; if(o.office_note) poznParts.push(o.office_note); if(entry.vyjetaKolej) poznParts.push('Vyjetá kolej');
+        const pozn = poznParts.length ? escapeHtml(poznParts.join('; ')) : 'N/A';
+        const photo = (src,cap)=> `<div style="text-align:center"><div style="font-size:11px;color:#555;margin-bottom:3px">${cap}</div>${src?`<img src="${src}" style="max-width:100%;max-height:250px;border:1px solid #ddd;border-radius:4px">`:'<div style="color:#999;padding:40px 0">bez fotky</div>'}</div>`;
+        const twoCol=(l1,v1,l2,v2)=>`<tr><td style="width:50%;vertical-align:top;padding:3px 0"><b>${l1}</b><br>${v1}</td><td style="width:50%;vertical-align:top;padding:3px 0"><b>${l2}</b><br>${v2}</td></tr>`;
+        const sec=t=>`<div style="font-weight:bold;font-size:14px;border-bottom:1px solid #333;margin:12px 0 6px;padding-bottom:2px">${t}</div>`;
+        return `<div style="width:794px;box-sizing:border-box;padding:30px 42px;background:#fff;color:#1a1a1a;font-family:Arial,Helvetica,sans-serif;font-size:12.5px;line-height:1.35">
+          <div style="text-align:right;margin-bottom:4px"><span style="font-size:26px;font-weight:800;letter-spacing:1px">FUTT<span style="color:#e2001a">E</span>C</span><div style="font-size:8.5px;color:#666;letter-spacing:1px">Microwave Road Repair Systems</div></div>
+          <h1 style="text-align:center;font-size:17px;margin:2px 0 12px">Protokol o provedení kontroly kvality vysprávky technologií mikrovlnného ohřevu</h1>
+          <hr style="border:none;border-top:1px solid #333;margin:0 0 8px">
+          <table style="width:100%;border-collapse:collapse"><tr>
+            <td style="width:33%;vertical-align:top;padding:3px 0"><b>ID Opravy</b><br>${V(o.id_cev)}</td>
+            <td style="vertical-align:top;padding:3px 0"><b>Oprava (správce, komunikace, datum a čas ukončení)</b><br>${V(o.oprava)}</td>
+          </tr></table>
+          <table style="width:100%;border-collapse:collapse;border-top:1px solid #ccc;margin-top:6px"><tr>
+            <td style="width:40%;vertical-align:top;padding:5px 0"><b>Kontrolu provedl</b><br>${V(o.kontrolu_provedl)}</td>
+            <td style="width:30%;vertical-align:top;padding:5px 0"><b>Datum kontroly</b><br>${V(formatIsoCz(o.datum_kontroly))}</td>
+            <td style="width:30%;vertical-align:top;padding:5px 0"><b>Stáří opravy</b><br>${V(repairAgeText(o))}</td>
+          </tr></table>
+          ${sec('Vizuální posouzení')}
+          <table style="width:100%;border-collapse:collapse"><tr>
+            <td style="width:50%;padding:0 6px 0 0">${photo(afterPhoto,'Foto po opravě')}</td>
+            <td style="width:50%;padding:0 0 0 6px">${photo(checkPhoto,'Foto při kontrole')}</td>
+          </tr></table>
+          <table style="width:100%;border-collapse:collapse;margin-top:8px">
+            ${twoCol('Posouzení textury',V(o.textura),'Posouzení zhutnění',V(o.zhutneni))}
+            ${twoCol('Posouzení rovinatosti',V(o.vizual_rovinatost),'Trhliny v opravě',V(o.trhliny))}
+            ${twoCol('Posouzení stavu okolí opravy',V(o.okoli_aktualni),'Posouzení stavu okolí opravy v době realizace',V(o.okoli_realizace))}
+          </table>
+          ${sec('Měřená rovinatost 2 m latí (v mm)')}
+          <table style="width:100%;border-collapse:collapse"><tr>
+            <td style="width:50%;vertical-align:top;padding:3px 0"><b>Příčně</b><br>${V(entry.crossNote)}</td>
+            <td style="width:50%;vertical-align:top;padding:3px 0"><b>Podélně</b><br>${V(entry.longNote)}</td>
+          </tr></table>
+          <div style="border-top:1px solid #ccc;margin-top:6px;padding-top:5px">${rovLine}</div>
+          <div style="padding-top:3px">${troxlerLine}</div>
+          <div style="padding-top:3px">${vyvrtLine}</div>
+          ${sec('Poznámky')}
+          <div>${pozn}</div>
+          <table style="width:100%;border-collapse:collapse;margin-top:26px;border-top:1px solid #ccc;font-size:9px;color:#666"><tr>
+            <td style="padding-top:6px">FUTTEC a.s.<br>V parku 2308/8, Chodov, 148 00 Praha 4</td>
+            <td style="padding-top:6px;text-align:center">IČ 27956857<br>DIČ CZ27956857</td>
+            <td style="padding-top:6px;text-align:right">E info@futtec.cz<br>futtec.cz</td>
+          </tr></table>
+        </div>`;
+      }
+      async function generateProtocolPdf(entry, o, afterPhoto, checkPhoto){
+        await ensureLib(()=>window.html2canvas, 'https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js');
+        await ensureLib(()=>window.jspdf, 'https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js');
+        const host = document.createElement('div');
+        host.style.cssText = 'position:fixed;left:-10000px;top:0;z-index:-1';
+        host.innerHTML = buildProtocolHtml(entry, o, afterPhoto, checkPhoto);
+        document.body.appendChild(host);
+        try{
+          const canvas = await html2canvas(host.firstElementChild, { scale:2, backgroundColor:'#fff', useCORS:true });
+          const img = canvas.toDataURL('image/jpeg', 0.92);
+          const { jsPDF } = window.jspdf;
+          const pdf = new jsPDF('p','mm','a4');
+          const pageW=210, pageH=297;
+          let w=pageW, h=canvas.height*pageW/canvas.width;
+          if(h>pageH){ const r=pageH/h; h=pageH; w=pageW*r; }
+          pdf.addImage(img,'JPEG',(pageW-w)/2,0,w,h);
+          const idStr = (o.id_cev && o.id_cev!=='N/A') ? o.id_cev : (entry.id||'protokol');
+          pdf.save(`Protokol_kontrola_kvality_${String(idStr).replace(/[^\w-]/g,'_')}.pdf`);
+        } finally { host.remove(); }
+      }
 
       async function renderFoldersAndEntries(folderToShow = null) {
         const allEntries = await getAllEntries();

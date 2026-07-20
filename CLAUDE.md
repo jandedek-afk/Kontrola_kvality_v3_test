@@ -102,5 +102,7 @@ Poznámky z domluvy s uživatelem (2026-07-15), ať se na to nezapomene:
   - fulltext `search_vector` z: `note, long_note, cross_note, inspectors, folder, office->>'id_cev'`
 - **Před spuštěním migrace / změnou DB schématu se vždy ptát** (viz pravidla výše).
 
-### 3) PDF protokol jednotlivého záznamu (odloženo)
-- Tlačítko v detailu záznamu → vygenerovat PDF protokol dle vzoru `Protokol_VZOR`. Knihovna z CDN (bez build kroku).
+### 3) PDF protokol jednotlivého záznamu — HOTOVO (Build 20)
+- Tlačítko **„📄 Protokol (PDF)"** v office formuláři → `generateProtocolPdf` (html2canvas + jsPDF z CDN, lazy). Renderuje offscreen HTML (`buildProtocolHtml`) → obrázek → A4 PDF (raster, kvůli českým znakům). Layout dle vzoru `Protokol_kontrola_kvality_*` (hlavička FUTTEC, ID/Oprava, Kontrolu provedl/Datum/Stáří opravy, foto po opravě + při kontrole, vizuální posouzení 2 sloupce, měřená rovinatost + verdikt limitů, Troxler/vývrt řádky, Poznámky, patička).
+- Mapování: `id_cev, oprava, kontrolu_provedl, datum_kontroly, textura, zhutneni, vizual_rovinatost, trhliny, okoli_aktualni, okoli_realizace, troxler_*, vyvrt_*`, měření z `entry.longNote/crossNote`, foto `entry.afterPhoto` + `entry.photo`. „Stáří opravy" = měsíce od data ukončení (z textu `oprava`) do `datum_kontroly` (`repairAgeText`).
+- Možné vylepšení: vektorové PDF (embed TTF fontu s diakritikou) místo rasteru; skutečné logo místo textového „FUTTEC".
