@@ -86,20 +86,23 @@
     .entry-menu button:hover{background:#eef5fe}
     .entry-menu button.danger{color:#b23b3b}
     /* Tabulka záznamů (zarovnané sloupce) */
-    .zn-table-wrap{overflow-x:auto;background:#fff;border-radius:12px;box-shadow:0 2px 6px rgba(0,0,0,0.04)}
+    .zn-table-wrap{overflow:auto;max-height:62vh;background:#fff;border-radius:12px;box-shadow:0 2px 6px rgba(0,0,0,0.04)}
     .zn-table{width:100%;border-collapse:collapse;font-size:0.84rem}
-    .zn-table thead th{background:#eef5fe;color:#33506f;font-weight:600;text-align:left;padding:8px 10px;white-space:nowrap;border-bottom:2px solid #cdddf3;font-size:0.8rem}
+    .zn-table thead th{position:sticky;top:0;z-index:3;background:#eef5fe;color:#33506f;font-weight:600;text-align:left;padding:8px 10px;white-space:nowrap;border-bottom:2px solid #cdddf3;font-size:0.8rem}
     .zn-table td{padding:6px 10px;border-bottom:1px solid #eef1f6;vertical-align:middle}
     .zn-table tbody tr:hover{background:#f7fafe}
     .zn-table .c-foto{width:110px}
     .zn-table .thumb-sm{width:100px;height:52px;object-fit:contain;background:#f4f8fe;border-radius:6px;border:1px solid #e6eef9;cursor:pointer;display:block}
     .zn-table .c-pick{width:30px;text-align:center}
-    .zn-table .c-act{width:44px}
+    .zn-table .c-act{width:54px;text-align:center}
     .zn-table .c-office{text-align:center}
     .zn-table .c-date{white-space:nowrap}
     .zn-table .c-gps{white-space:nowrap;color:var(--muted);font-size:0.8rem}
     .zn-table .cell-clip{max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
     .zn-table .entry-pick{transform:scale(1.2);cursor:pointer}
+    .zn-table .verdict-sm{display:inline-block;padding:2px 10px;border-radius:999px;font-weight:600;white-space:nowrap}
+    .zn-table .verdict-sm.ok{background:#e6f4ea;color:#1e7d34}
+    .zn-table .verdict-sm.bad{background:#fde8e8;color:#c62828}
     .meta p{margin:0;font-size:0.9rem;color:#333;line-height:1.5}
     .meta p strong{color:#111;font-size:0.88rem}
     .actions{display:flex;gap:8px;margin-top:8px;flex-wrap:wrap}
@@ -478,7 +481,7 @@
 
           <footer>
             Aplikace funguje offline. Data jsou uložena lokálně v zařízení (IndexedDB).<br>
-            <span style="color:var(--muted);font-size:0.95em;">Verze aplikace: v3.2.0-test · Build 2026-07-15·18</span>
+            <span style="color:var(--muted);font-size:0.95em;">Verze aplikace: v3.2.0-test · Build 2026-07-20·19</span>
           </footer>
         </main>
       </div>
@@ -1628,15 +1631,25 @@
 
       async function getEntryById(id){ const all = await getAllEntries(); return all.find(x=>x.id===id); }
 
+      // Malý verdikt rovinatosti pro tabulku (zelené/červené pozadí, normální písmo, bez ikony)
+      function rovinatostBadgeSmall(longStr, crossStr){
+        const vals = parseRovinatostVals(longStr).concat(parseRovinatostVals(crossStr));
+        if(vals.length===0) return '—';
+        const ok = vals.filter(v=>v<=10).length;
+        return (ok/vals.length)>=0.75
+          ? '<span class="verdict-sm ok">vyhovující</span>'
+          : '<span class="verdict-sm bad">nevyhovující</span>';
+      }
       // Jeden záznam → řádek tabulky (hodnoty zarovnané do sloupců)
       function buildEntryRow(e, withPick){
         const coordsText = e.coords ? `${e.coords.lat}, ${e.coords.lon}` : '—';
-        const rovBadge = rovinatostBadge(e.longNote, e.crossNote) || '—';
+        const rovBadge = rovinatostBadgeSmall(e.longNote, e.crossNote);
         const syncBadge = e.synced ? '' : ' <span class="badge-unsynced">⏳</span>';
         const officeBadge = `<span class="status-pill ${e.officeDone?'done':'wait'}">${e.officeDone?'✓':'⏳'}</span>`;
         const pick = withPick ? `<td class="c-pick"><input type="checkbox" class="entry-pick" data-id="${escAttr(e.id)}" ${selectedIds.has(e.id)?'checked':''}></td>` : '';
         return `<tr data-id="${escAttr(e.id)}">
           ${pick}
+          <td class="c-act"><span class="entry-menu-wrap"><button type="button" class="entry-menu-btn" data-act="menu" aria-label="Akce">⋯</button><div class="entry-menu" hidden><button type="button" data-act="view">Zobrazit</button><button type="button" data-act="download">Stáhnout foto</button><button type="button" data-act="move">Přesunout</button><button type="button" data-act="delete" class="danger">Smazat</button></div></span></td>
           <td class="c-foto"><img class="thumb-sm" src="${e.photo}" alt="foto" loading="lazy" data-act="view"></td>
           <td class="c-date">${escapeHtml(e.timeText||'')}${syncBadge}</td>
           <td>${escapeHtml(e.folder||'Bez složky')}</td>
@@ -1646,12 +1659,11 @@
           <td>${rovBadge}</td>
           <td class="c-note"><div class="cell-clip" title="${escAttr(e.note||'')}">${escapeHtml(e.note||'—')}</div></td>
           <td class="c-office">${officeBadge}</td>
-          <td class="c-act"><span class="entry-menu-wrap"><button type="button" class="entry-menu-btn" data-act="menu" aria-label="Akce">⋯</button><div class="entry-menu" hidden><button type="button" data-act="view">Zobrazit</button><button type="button" data-act="download">Stáhnout foto</button><button type="button" data-act="move">Přesunout</button><button type="button" data-act="delete" class="danger">Smazat</button></div></span></td>
         </tr>`;
       }
       // Tabulka záznamů se záhlavím sloupců
       function buildEntriesTable(entries, withPick){
-        const head = `<thead><tr>${withPick?'<th class="c-pick"></th>':''}<th class="c-foto">Foto</th><th>Datum a čas</th><th>Složka</th><th>GPS</th><th>Podélné</th><th>Příčné</th><th>Rovinatost</th><th>Poznámka</th><th class="c-office">Office</th><th class="c-act"></th></tr></thead>`;
+        const head = `<thead><tr>${withPick?'<th class="c-pick"></th>':''}<th class="c-act">Akce</th><th class="c-foto">Foto</th><th>Datum a čas</th><th>Složka</th><th>GPS</th><th>Podélné</th><th>Příčné</th><th>Rovinatost</th><th>Poznámka</th><th class="c-office">Office</th></tr></thead>`;
         return `<div class="zn-table-wrap"><table class="zn-table">${head}<tbody>${entries.map(e=> buildEntryRow(e, withPick)).join('')}</tbody></table></div>`;
       }
       // Delegované ovládání tabulky (klik na akce/menu, checkbox)
@@ -1668,7 +1680,7 @@
               const menu = tr.querySelector('.entry-menu');
               const wasHidden = menu.hidden;
               document.querySelectorAll('.entry-menu').forEach(m=> m.hidden = true);
-              if(wasHidden){ const r = act.getBoundingClientRect(); menu.style.top = (r.bottom+4)+'px'; menu.style.left = Math.max(8, Math.min(r.right-150, window.innerWidth-158))+'px'; menu.hidden = false; }
+              if(wasHidden){ const r = act.getBoundingClientRect(); menu.style.top = (r.bottom+4)+'px'; menu.style.left = Math.max(8, Math.min(r.left, window.innerWidth-158))+'px'; menu.hidden = false; }
               break;
             }
             case 'download': { const e = await getEntryById(id); if(e) downloadPhoto(e.photo, id); break; }
