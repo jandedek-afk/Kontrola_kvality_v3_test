@@ -481,7 +481,7 @@
 
           <footer>
             Aplikace funguje offline. Data jsou uložena lokálně v zařízení (IndexedDB).<br>
-            <span style="color:var(--muted);font-size:0.95em;">Verze aplikace: v3.2.0-test · Build 2026-07-20·22</span>
+            <span style="color:var(--muted);font-size:0.95em;">Verze aplikace: v3.2.0-test · Build 2026-07-20·23</span>
           </footer>
         </main>
       </div>
@@ -1858,8 +1858,8 @@
         host.innerHTML = buildProtocolHtml(entry, o, afterPhoto, checkPhoto, logoSrc);
         document.body.appendChild(host);
         try{
-          const canvas = await html2canvas(host.firstElementChild, { scale:2, backgroundColor:'#fff', useCORS:true });
-          const img = canvas.toDataURL('image/jpeg', 0.92);
+          const canvas = await html2canvas(host.firstElementChild, { scale:3, backgroundColor:'#fff', useCORS:true });
+          const img = canvas.toDataURL('image/jpeg', 0.96);
           const { jsPDF } = window.jspdf;
           const pdf = new jsPDF('p','mm','a4');
           const pageW=210, pageH=297;
