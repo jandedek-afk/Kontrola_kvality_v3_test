@@ -481,7 +481,7 @@
 
           <footer>
             Aplikace funguje offline. Data jsou uložena lokálně v zařízení (IndexedDB).<br>
-            <span style="color:var(--muted);font-size:0.95em;">Verze aplikace: v3.2.0-test · Build 2026-07-20·20</span>
+            <span style="color:var(--muted);font-size:0.95em;">Verze aplikace: v3.2.0-test · Build 2026-07-20·21</span>
           </footer>
         </main>
       </div>
@@ -1789,7 +1789,8 @@
         if(!vals.length) return null;
         return vals.filter(v=>v<=10).length/vals.length >= 0.75;
       }
-      function buildProtocolHtml(entry, o, afterPhoto, checkPhoto){
+      function loadLogoSrc(){ return new Promise(res=>{ const im=new Image(); im.onload=()=>res('logo_futtec.png'); im.onerror=()=>res(''); im.src='logo_futtec.png?v='+Date.now(); }); }
+      function buildProtocolHtml(entry, o, afterPhoto, checkPhoto, logoSrc){
         const V = x => (x && String(x).trim()) ? escapeHtml(x) : 'N/A';
         const spl = rovinatostSplnuje(entry.longNote, entry.crossNote);
         const rovLine = spl===null ? 'Rovinatost nebyla změřena' : (spl ? 'Oprava splňuje limity rovinatosti' : 'Oprava nesplňuje limity rovinatosti');
@@ -1804,9 +1805,12 @@
         const photo = (src,cap)=> `<div style="text-align:center"><div style="font-size:11px;color:#555;margin-bottom:3px">${cap}</div>${src?`<img src="${src}" style="max-width:100%;max-height:250px;border:1px solid #ddd;border-radius:4px">`:'<div style="color:#999;padding:40px 0">bez fotky</div>'}</div>`;
         const twoCol=(l1,v1,l2,v2)=>`<tr><td style="width:50%;vertical-align:top;padding:3px 0"><b>${l1}</b><br>${v1}</td><td style="width:50%;vertical-align:top;padding:3px 0"><b>${l2}</b><br>${v2}</td></tr>`;
         const sec=t=>`<div style="font-weight:bold;font-size:14px;border-bottom:1px solid #333;margin:12px 0 6px;padding-bottom:2px">${t}</div>`;
-        return `<div style="width:794px;box-sizing:border-box;padding:30px 42px;background:#fff;color:#1a1a1a;font-family:Arial,Helvetica,sans-serif;font-size:12.5px;line-height:1.35">
-          <div style="text-align:right;margin-bottom:4px"><span style="font-size:26px;font-weight:800;letter-spacing:1px">FUTT<span style="color:#e2001a">E</span>C</span><div style="font-size:8.5px;color:#666;letter-spacing:1px">Microwave Road Repair Systems</div></div>
-          <h1 style="text-align:center;font-size:17px;margin:2px 0 12px">Protokol o provedení kontroly kvality vysprávky technologií mikrovlnného ohřevu</h1>
+        const logoHtml = logoSrc
+          ? `<img src="${logoSrc}" style="height:48px;display:block">`
+          : `<span style="font-size:30px;font-weight:800;letter-spacing:1px">FUTT<span style="color:#e2001a">E</span>C</span><span style="display:inline-block;text-align:left;line-height:1.15;margin-left:8px;vertical-align:middle"><span style="color:#e2001a;font-weight:bold;font-size:11px">Microwave</span><br><span style="font-size:11px;color:#111">Road Repair Systems</span></span>`;
+        return `<div style="width:794px;min-height:1123px;box-sizing:border-box;padding:30px 42px;background:#fff;color:#1a1a1a;font-family:Arial,Helvetica,sans-serif;font-size:12.5px;line-height:1.35;display:flex;flex-direction:column">
+          <div style="display:flex;justify-content:flex-end;align-items:center;margin-bottom:4px">${logoHtml}</div>
+          <h1 style="text-align:center;font-size:17px;margin:2px 0 12px;color:#000">Protokol o provedení kontroly kvality vysprávky technologií mikrovlnného ohřevu</h1>
           <hr style="border:none;border-top:1px solid #333;margin:0 0 8px">
           <table style="width:100%;border-collapse:collapse"><tr>
             <td style="width:33%;vertical-align:top;padding:3px 0"><b>ID Opravy</b><br>${V(o.id_cev)}</td>
@@ -1837,7 +1841,7 @@
           <div style="padding-top:3px">${vyvrtLine}</div>
           ${sec('Poznámky')}
           <div>${pozn}</div>
-          <table style="width:100%;border-collapse:collapse;margin-top:26px;border-top:1px solid #ccc;font-size:9px;color:#666"><tr>
+          <table style="width:100%;border-collapse:collapse;margin-top:auto;border-top:1px solid #ccc;font-size:9px;color:#666"><tr>
             <td style="padding-top:6px">FUTTEC a.s.<br>V parku 2308/8, Chodov, 148 00 Praha 4</td>
             <td style="padding-top:6px;text-align:center">IČ 27956857<br>DIČ CZ27956857</td>
             <td style="padding-top:6px;text-align:right">E info@futtec.cz<br>futtec.cz</td>
@@ -1847,9 +1851,10 @@
       async function generateProtocolPdf(entry, o, afterPhoto, checkPhoto){
         await ensureLib(()=>window.html2canvas, 'https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js');
         await ensureLib(()=>window.jspdf, 'https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js');
+        const logoSrc = await loadLogoSrc();
         const host = document.createElement('div');
         host.style.cssText = 'position:fixed;left:-10000px;top:0;z-index:-1';
-        host.innerHTML = buildProtocolHtml(entry, o, afterPhoto, checkPhoto);
+        host.innerHTML = buildProtocolHtml(entry, o, afterPhoto, checkPhoto, logoSrc);
         document.body.appendChild(host);
         try{
           const canvas = await html2canvas(host.firstElementChild, { scale:2, backgroundColor:'#fff', useCORS:true });
