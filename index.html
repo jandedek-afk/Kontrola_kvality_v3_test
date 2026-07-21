@@ -481,7 +481,7 @@
 
           <footer>
             Aplikace funguje offline. Data jsou uložena lokálně v zařízení (IndexedDB).<br>
-            <span style="color:var(--muted);font-size:0.95em;">Verze aplikace: v3.2.0-test · Build 2026-07-20·23</span>
+            <span style="color:var(--muted);font-size:0.95em;">Verze aplikace: v3.2.0-test · Build 2026-07-21·24</span>
           </footer>
         </main>
       </div>
@@ -1849,7 +1849,115 @@
           </tr></table>
         </div>`;
       }
+      // Načte obrázek (dataURL nebo cesta) do HTMLImageElement, null při chybě
+      function loadImg(src){ return new Promise(res=>{ if(!src) return res(null); const im=new Image(); im.onload=()=>res(im); im.onerror=()=>res(null); im.src=src; }); }
+      function protocolFilename(entry,o){ const idStr=(o.id_cev&&o.id_cev!=='N/A')?o.id_cev:(entry.id||'protokol'); return `Protokol_kontrola_kvality_${String(idStr).replace(/[^\w-]/g,'_')}.pdf`; }
+      // Font s českou diakritikou pro vektorové PDF (z CDN, base64, cache v paměti)
+      let _protocolFont = null;
+      async function fetchFontBase64(url){
+        const buf = await (await fetch(url)).arrayBuffer();
+        const bytes = new Uint8Array(buf); let bin=''; const chunk=0x8000;
+        for(let i=0;i<bytes.length;i+=chunk){ bin += String.fromCharCode.apply(null, bytes.subarray(i,i+chunk)); }
+        return btoa(bin);
+      }
+      async function ensureProtocolFont(){
+        if(_protocolFont) return _protocolFont;
+        const base='https://cdn.jsdelivr.net/npm/dejavu-fonts-ttf@2.37.3/ttf/';
+        const [reg,bold] = await Promise.all([ fetchFontBase64(base+'DejaVuSans.ttf'), fetchFontBase64(base+'DejaVuSans-Bold.ttf') ]);
+        _protocolFont = {reg,bold};
+        return _protocolFont;
+      }
+      // Textové řádky (verdikt/troxler/vývrt/poznámky) – sdílené pro vektor i rastr
+      function protocolComputedLines(entry,o){
+        const spl = rovinatostSplnuje(entry.longNote, entry.crossNote);
+        const rovLine = spl===null ? 'Rovinatost nebyla změřena' : (spl ? 'Oprava splňuje limity rovinatosti' : 'Oprava nesplňuje limity rovinatosti');
+        const troxlerLine = (o.troxler_pouzit==='Ano')
+          ? `Měření zhutnění (Troxler): ${o.troxler_hodnoty||'—'}${o.troxler_vyhovuje?(' – '+o.troxler_vyhovuje):''}`
+          : 'Nebylo provedeno měření zhutnění (Troxler)';
+        const vyvrtLine = (o.vyvrt_proveden==='Ano')
+          ? `Vývrt proveden: tloušťka ${o.vyvrt_tloustka||'—'}; spojení vrstev ${o.spojeni_vrstev||'—'}; na hraně ${o.spojeni_hrana||'—'}; mezerovitost ${o.mezerovitost||'—'}`
+          : 'Nebyl proveden vývrt';
+        const pp=[]; if(o.office_note) pp.push(o.office_note); if(entry.vyjetaKolej) pp.push('Vyjetá kolej');
+        return { rovLine, troxlerLine, vyvrtLine, pozn: pp.length?pp.join('; '):'N/A' };
+      }
+
+      // Vektorové PDF s vyhledatelným textem (jsPDF + DejaVu font)
+      async function generateProtocolPdfVector(entry, o, afterPhoto, checkPhoto){
+        await ensureLib(()=>window.jspdf, 'https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js');
+        const font = await ensureProtocolFont();
+        const { jsPDF } = window.jspdf;
+        const pdf = new jsPDF('p','mm','a4');
+        pdf.addFileToVFS('DejaVuSans.ttf', font.reg); pdf.addFont('DejaVuSans.ttf','DejaVu','normal');
+        pdf.addFileToVFS('DejaVuSans-Bold.ttf', font.bold); pdf.addFont('DejaVuSans-Bold.ttf','DejaVu','bold');
+        const pageW=210, pageH=297, M=14, cW=pageW-2*M, gap=6, colW=(cW-gap)/2;
+        let y=14;
+        const F=(s,sz)=>{ pdf.setFont('DejaVu',s); pdf.setFontSize(sz); };
+        const V=x=>(x&&String(x).trim())?String(x):'N/A';
+        const block=(label,val,x,top,w)=>{ F('bold',9); pdf.setTextColor(10,10,10); pdf.text(label,x,top,{maxWidth:w}); F('normal',10); pdf.setTextColor(45,45,45); const ls=pdf.splitTextToSize(V(val),w); const labLines=pdf.splitTextToSize(label,w).length; const ly=top+labLines*4+0.5; pdf.text(ls,x,ly); return ly+ls.length*4.6; };
+        const section=t=>{ F('bold',12); pdf.setTextColor(0,0,0); pdf.text(t,M,y); y+=1.5; pdf.setDrawColor(40); pdf.setLineWidth(0.3); pdf.line(M,y,pageW-M,y); y+=5; };
+        // logo vpravo nahoře
+        const logoImg = await loadImg(PROTOCOL_LOGO);
+        if(logoImg){ const lh=12, lw=lh*(logoImg.width/logoImg.height); pdf.addImage(logoImg,'PNG',pageW-M-lw,y,lw,lh); }
+        y+=15;
+        // nadpis (černě)
+        F('bold',13); pdf.setTextColor(0,0,0);
+        const tl=pdf.splitTextToSize('Protokol o provedení kontroly kvality vysprávky technologií mikrovlnného ohřevu',cW);
+        pdf.text(tl,pageW/2,y,{align:'center'}); y+=tl.length*5.6+3;
+        pdf.setDrawColor(40); pdf.setLineWidth(0.3); pdf.line(M,y,pageW-M,y); y+=5;
+        // ID / Oprava
+        const idW=52;
+        let yA=block('ID Opravy',o.id_cev,M,y,idW-4);
+        let yB=block('Oprava (správce, komunikace, datum a čas ukončení)',o.oprava,M+idW,y,cW-idW);
+        y=Math.max(yA,yB)+3; pdf.setDrawColor(205); pdf.setLineWidth(0.2); pdf.line(M,y,pageW-M,y); y+=5;
+        // Kontrolu provedl / Datum / Stáří
+        const c3=cW/3;
+        yA=block('Kontrolu provedl',o.kontrolu_provedl,M,y,c3-3);
+        yB=block('Datum kontroly',formatIsoCz(o.datum_kontroly),M+c3,y,c3-3);
+        let yC=block('Stáří opravy',repairAgeText(o),M+2*c3,y,c3-3);
+        y=Math.max(yA,yB,yC)+4;
+        // Vizuální posouzení + fotky
+        section('Vizuální posouzení');
+        F('normal',9); pdf.setTextColor(90,90,90);
+        pdf.text('Foto po opravě',M,y); pdf.text('Foto při kontrole',M+colW+gap,y); y+=2;
+        const maxPh=58;
+        const drawPhoto=async(src,x)=>{ const im=await loadImg(src); if(!im){ F('normal',9); pdf.setTextColor(150,150,150); pdf.text('bez fotky',x,y+10); return 14; } let w=colW,h=w*(im.height/im.width); if(h>maxPh){ h=maxPh; w=h*(im.width/im.height); } pdf.addImage(im,'JPEG',x,y,w,h); return h; };
+        const h1=await drawPhoto(afterPhoto,M); const h2=await drawPhoto(checkPhoto,M+colW+gap);
+        y+=Math.max(h1,h2,14)+5;
+        // dvousloupcové posouzení
+        const tworow=(l1,v1,l2,v2)=>{ const a=block(l1,v1,M,y,colW); const b=block(l2,v2,M+colW+gap,y,colW); y=Math.max(a,b)+2.5; };
+        tworow('Posouzení textury',o.textura,'Posouzení zhutnění',o.zhutneni);
+        tworow('Posouzení rovinatosti',o.vizual_rovinatost,'Trhliny v opravě',o.trhliny);
+        tworow('Posouzení stavu okolí opravy',o.okoli_aktualni,'Posouzení stavu okolí opravy v době realizace',o.okoli_realizace);
+        y+=3;
+        // Měřená rovinatost
+        section('Měřená rovinatost 2 m latí (v mm)');
+        yA=block('Příčně',entry.crossNote,M,y,colW); yB=block('Podélně',entry.longNote,M+colW+gap,y,colW);
+        y=Math.max(yA,yB)+3; pdf.setDrawColor(205); pdf.line(M,y,pageW-M,y); y+=5;
+        const L=protocolComputedLines(entry,o);
+        F('normal',10); pdf.setTextColor(30,30,30);
+        [L.rovLine,L.troxlerLine,L.vyvrtLine].forEach(line=>{ const ls=pdf.splitTextToSize(line,cW); pdf.text(ls,M,y); y+=ls.length*4.8; });
+        y+=2;
+        // Poznámky
+        section('Poznámky');
+        F('normal',10); pdf.setTextColor(30,30,30);
+        pdf.text(pdf.splitTextToSize(L.pozn,cW),M,y);
+        // patička dole
+        const fy=pageH-15;
+        pdf.setDrawColor(205); pdf.setLineWidth(0.2); pdf.line(M,fy-4,pageW-M,fy-4);
+        F('normal',8); pdf.setTextColor(110,110,110);
+        pdf.text('FUTTEC a.s.\nV parku 2308/8, Chodov, 148 00 Praha 4',M,fy);
+        pdf.text('IČ 27956857\nDIČ CZ27956857',pageW/2,fy,{align:'center'});
+        pdf.text('E info@futtec.cz\nfuttec.cz',pageW-M,fy,{align:'right'});
+        pdf.save(protocolFilename(entry,o));
+      }
+
+      // Nejdřív vektor (vyhledatelný text); když font/knihovna selže (offline), fallback na rastr
       async function generateProtocolPdf(entry, o, afterPhoto, checkPhoto){
+        try{ await generateProtocolPdfVector(entry, o, afterPhoto, checkPhoto); }
+        catch(err){ console.warn('Vektorové PDF selhalo, používám rastr:', err && err.message ? err.message : err); await generateProtocolPdfRaster(entry, o, afterPhoto, checkPhoto); }
+      }
+
+      async function generateProtocolPdfRaster(entry, o, afterPhoto, checkPhoto){
         await ensureLib(()=>window.html2canvas, 'https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js');
         await ensureLib(()=>window.jspdf, 'https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js');
         const logoSrc = await loadLogoSrc();
