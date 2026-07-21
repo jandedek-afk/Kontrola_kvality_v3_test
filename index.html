@@ -242,9 +242,11 @@
     .filter-inspectors .name-opt.sel{background:var(--brand);color:#fff;border-color:var(--brand)}
     .filter-count{font-size:0.85rem;color:#5a6b7f;margin:2px 0 10px}
     /* Hromadné akce */
-    .bulk-bar{display:flex;gap:10px;flex-wrap:wrap;align-items:center;background:#eef5fe;border:1px solid #cdddf3;border-radius:10px;padding:8px 12px;margin-bottom:1rem;font-size:0.86rem}
-    .bulk-bar[hidden]{display:none}
-    .bulk-bar .bulk-count{font-weight:600;color:#33506f}
+    .zn-toolbar{display:flex;gap:10px;flex-wrap:wrap;align-items:center;background:#eef5fe;border:1px solid #cdddf3;border-radius:10px;padding:7px 10px;margin-bottom:8px;font-size:0.85rem}
+    .zn-toolbar[hidden]{display:none}
+    .zn-toolbar .bulk-count{font-weight:600;color:#33506f}
+    .zn-toolbar .zn-selall{display:flex;align-items:center;gap:6px;cursor:pointer}
+    .zn-toolbar .zn-selall input{transform:scale(1.2);cursor:pointer}
     .entry .entry-pick{align-self:center;transform:scale(1.3);cursor:pointer}
     /* Export menu */
     .export-wrap{position:relative;display:inline-block}
@@ -430,17 +432,6 @@
                 <button id="view-flat" type="button" class="vt-btn">📋 Vše pod sebou</button>
               </div>
               <span class="export-wrap">
-                <button id="exportBtn" type="button" class="btn-secondary">Exportovat ▾</button>
-                <div id="export-menu" class="export-menu" hidden>
-                  <button type="button" data-export="json">JSON – záloha / re-import (plná data)</button>
-                  <button type="button" data-export="xlsx">Excel (XLSX) – tabulka bez fotek</button>
-                </div>
-              </span>
-              <span class="export-wrap">
-                <button id="colsBtn" type="button" class="btn-secondary">Sloupce ▾</button>
-                <div id="cols-menu" class="export-menu" hidden></div>
-              </span>
-              <span class="export-wrap">
                 <button id="moreBtn" type="button" class="btn-secondary">⋯ Více</button>
                 <div id="more-menu" class="export-menu" hidden>
                   <button type="button" id="importBtn">Importovat data</button>
@@ -465,15 +456,25 @@
               <div id="f-inspectors" class="filter-inspectors"></div>
             </div>
 
-            <div id="bulk-bar" class="bulk-bar" hidden>
-              <label><input type="checkbox" id="bulk-all"> Vybrat vše (filtrované)</label>
+            <div id="filter-count" class="filter-count" hidden></div>
+
+            <div id="zn-toolbar" class="zn-toolbar" hidden>
+              <label class="zn-selall"><input type="checkbox" id="bulk-all"> Vybrat vše</label>
               <span class="bulk-count" id="bulk-count">0 vybráno</span>
-              <button id="bulk-export-json" type="button" class="btn-small">Export vybraných (JSON)</button>
-              <button id="bulk-export-xlsx" type="button" class="btn-small">Export vybraných (XLSX)</button>
-              <button id="bulk-delete" type="button" class="btn-small danger">Smazat vybrané</button>
+              <span class="export-wrap">
+                <button id="selActionsBtn" type="button" class="btn-small">Akce ▾</button>
+                <div id="sel-menu" class="export-menu" hidden>
+                  <button type="button" data-sel="json">Exportovat JSON</button>
+                  <button type="button" data-sel="xlsx">Exportovat XLSX</button>
+                  <button type="button" data-sel="delete" class="danger">🗑️ Smazat vybrané</button>
+                </div>
+              </span>
+              <span class="export-wrap" style="margin-left:auto">
+                <button id="colsBtn" type="button" class="btn-small">Sloupce ▾</button>
+                <div id="cols-menu" class="export-menu" hidden></div>
+              </span>
             </div>
 
-            <div id="filter-count" class="filter-count" hidden></div>
             <section class="folders" id="folders"></section>
             <section class="entries" id="entries"></section>
             <div id="load-more-wrap" style="text-align:center;margin-top:1rem" hidden><button id="load-more" type="button" class="btn-secondary">Načíst další</button></div>
@@ -512,7 +513,7 @@
 
           <footer>
             Aplikace funguje offline. Data jsou uložena lokálně v zařízení (IndexedDB).<br>
-            <span style="color:var(--muted);font-size:0.95em;">Verze aplikace: v3.2.0-test · Build 2026-07-21·27</span>
+            <span style="color:var(--muted);font-size:0.95em;">Verze aplikace: v3.2.0-test · Build 2026-07-21·28</span>
           </footer>
         </main>
       </div>
@@ -1767,7 +1768,7 @@
         cnt.hidden = false;
         cnt.textContent = `Zobrazeno ${shown.length} z ${lastFiltered.length} ${filterActive()?'vyfiltrovaných ':''}záznamů`;
         document.getElementById('load-more-wrap').hidden = shown.length >= lastFiltered.length;
-        document.getElementById('bulk-bar').hidden = false;
+        document.getElementById('zn-toolbar').hidden = false;
         if(statusEl) statusEl.textContent = `${lastFiltered.length} záznamů (filtr)`;
         const ba = document.getElementById('bulk-all');
         if(ba) ba.checked = lastFiltered.length>0 && lastFiltered.every(e=> selectedIds.has(e.id));
@@ -2044,7 +2045,7 @@
 
         // Aktivní filtr NEBO režim „Vše pod sebou" → plochý seznam napříč složkami
         if(filterActive() || znViewMode==='flat'){ await renderFilteredResults(allEntries); return; }
-        document.getElementById('bulk-bar').hidden = true;
+        document.getElementById('zn-toolbar').hidden = true;
         document.getElementById('filter-count').hidden = true;
         document.getElementById('load-more-wrap').hidden = true;
 
@@ -2130,8 +2131,13 @@
             backBtn.style.display = 'block';
             foldersEl.innerHTML = `<h2>Složka: ${escapeHtml(folderToShow)}</h2>`;
             const entriesInFolder = allEntries.filter(e => (e.folder || 'Bez složky') === folderToShow);
-            entriesEl.innerHTML = buildEntriesTable(entriesInFolder, false);
+            lastFiltered = entriesInFolder; // pro „Vybrat vše" v rámci složky
+            entriesEl.innerHTML = buildEntriesTable(entriesInFolder, true);
             wireEntriesTable(entriesEl, folderToShow);
+            document.getElementById('zn-toolbar').hidden = false; // výběr / akce / sloupce i ve složce
+            const ba = document.getElementById('bulk-all');
+            if(ba) ba.checked = entriesInFolder.length>0 && entriesInFolder.every(e=> selectedIds.has(e.id));
+            updateBulkBar();
             statusEl.textContent = `${entriesInFolder.length} ${entriesInFolder.length === 1 ? 'záznam' : 'záznamy'}`;
         }
     }
@@ -2592,18 +2598,34 @@
           tx.oncomplete = async ()=>{ await renderFoldersAndEntries(); };
           if(navigator.onLine){ all.forEach(e=> deleteFromCloud(e.id).then(ok=>{ if(ok) unmarkDeleted(e.id); })); }
         });
-        // Export menu (JSON / XLSX) – exportuje aktuálně vyfiltrovanou množinu
-        const exportMenu = document.getElementById('export-menu');
+        // Menu v liště (⋯ Více / Sloupce / Akce s výběrem) – vždy jen jedno otevřené
         const moreMenu = document.getElementById('more-menu');
         const colsMenu = document.getElementById('cols-menu');
-        const allMenus = [exportMenu, moreMenu, colsMenu];
+        const selMenu = document.getElementById('sel-menu');
+        const allMenus = [moreMenu, colsMenu, selMenu];
         const openOnly = (m)=> allMenus.forEach(x=>{ if(x) x.hidden = (x===m ? !x.hidden : true); });
-        document.getElementById('exportBtn').addEventListener('click', (e)=>{ e.stopPropagation(); openOnly(exportMenu); });
         document.getElementById('moreBtn').addEventListener('click', (e)=>{ e.stopPropagation(); openOnly(moreMenu); });
         document.getElementById('colsBtn').addEventListener('click', (e)=>{ e.stopPropagation(); openOnly(colsMenu); });
+        document.getElementById('selActionsBtn').addEventListener('click', (e)=>{ e.stopPropagation(); openOnly(selMenu); });
         moreMenu.addEventListener('click', ()=> setTimeout(()=>{ moreMenu.hidden = true; }, 0)); // po volbě položky zavři
+        selMenu.addEventListener('click', ()=> setTimeout(()=>{ selMenu.hidden = true; }, 0));
         document.addEventListener('click', (e)=>{ if(!e.target.closest('.export-wrap')) allMenus.forEach(m=>{ if(m) m.hidden = true; }); });
         document.addEventListener('click', ()=> document.querySelectorAll('.entry-menu:not([hidden])').forEach(m=> m.hidden = true)); // zavři ⋯ menu klikem jinam
+
+        // „Akce ▾" nad tabulkou – na OZNAČENÉ řádky (když nic není označeno → celá zobrazená/filtrovaná množina)
+        const selSet = async ()=>{ if(selectedIds.size){ const all=await getAllEntries(); return all.filter(x=>selectedIds.has(x.id)); } return await currentExportSet(); };
+        selMenu.querySelectorAll('button[data-sel]').forEach(b=> b.addEventListener('click', async ()=>{
+          const a=b.dataset.sel;
+          if(a==='delete'){
+            const ids=[...selectedIds];
+            if(!ids.length){ alert('Nejsou označené žádné řádky.'); return; }
+            if(!confirm(`Opravdu smazat ${ids.length} označených záznamů? Smažou se i z cloudu a nelze to vzít zpět.`)) return;
+            for(const id of ids){ try{ await deleteEntryFully(id); }catch(err){ console.warn('bulk delete', id, err); } }
+            selectedIds.clear(); await renderFoldersAndEntries(); return;
+          }
+          try{ const set=await selSet(); if(!set.length){ alert('Není co exportovat.'); return; } if(a==='json') exportJson(set); else { setSyncStatus('Připravuji XLSX…'); await exportXlsx(set); setSyncStatus(''); } }
+          catch(err){ setSyncStatus(''); alert('Export selhal: '+(err.message||err)); }
+        }));
 
         // Dialog akcí záznamu – obsluha tlačítek
         const actionSheet = document.getElementById('action-sheet');
@@ -2639,15 +2661,6 @@
         document.getElementById('view-folders').addEventListener('click', ()=>{ znViewMode='folders'; localStorage.setItem('kk_zaznamy_view','folders'); filterState.page=1; updateViewToggle(); renderFoldersAndEntries(); });
         document.getElementById('view-flat').addEventListener('click', ()=>{ znViewMode='flat'; localStorage.setItem('kk_zaznamy_view','flat'); filterState.page=1; updateViewToggle(); renderFoldersAndEntries(); });
         updateViewToggle();
-        exportMenu.querySelectorAll('button[data-export]').forEach(b=> b.addEventListener('click', async ()=>{
-          exportMenu.hidden = true;
-          try{
-            const set = await currentExportSet();
-            if(!set.length){ alert('Není co exportovat.'); return; }
-            if(b.dataset.export === 'json') exportJson(set);
-            else { setSyncStatus('Připravuji XLSX…'); await exportXlsx(set); setSyncStatus(''); }
-          }catch(err){ setSyncStatus(''); alert('Export selhal: ' + (err.message||err)); }
-        }));
 
         // Filtry
         const applyFilter = (resetPage=true)=>{ if(resetPage) filterState.page = 1; renderFoldersAndEntries(); };
@@ -2670,22 +2683,11 @@
         // Stránkování
         document.getElementById('load-more').addEventListener('click', ()=>{ filterState.page++; renderFoldersAndEntries(); });
 
-        // Hromadné akce
+        // Vybrat vše (v aktuálně zobrazené/filtrované množině)
         document.getElementById('bulk-all').addEventListener('change', (e)=>{
           if(e.target.checked) lastFiltered.forEach(x=> selectedIds.add(x.id));
           else lastFiltered.forEach(x=> selectedIds.delete(x.id));
           renderFoldersAndEntries();
-        });
-        const selectedEntries = async ()=>{ const all = await getAllEntries(); return all.filter(x=> selectedIds.has(x.id)); };
-        document.getElementById('bulk-export-json').addEventListener('click', async ()=>{ const s = await selectedEntries(); if(!s.length){ alert('Nic není vybráno.'); return; } exportJson(s); });
-        document.getElementById('bulk-export-xlsx').addEventListener('click', async ()=>{ const s = await selectedEntries(); if(!s.length){ alert('Nic není vybráno.'); return; } try{ setSyncStatus('Připravuji XLSX…'); await exportXlsx(s); setSyncStatus(''); }catch(err){ setSyncStatus(''); alert('Export selhal: '+(err.message||err)); } });
-        document.getElementById('bulk-delete').addEventListener('click', async ()=>{
-          const ids = [...selectedIds];
-          if(!ids.length){ alert('Nic není vybráno.'); return; }
-          if(!confirm(`Opravdu smazat ${ids.length} vybraných záznamů? Smažou se i z cloudu a nelze to vzít zpět.`)) return;
-          for(const id of ids){ try{ await deleteEntryFully(id); }catch(err){ console.warn('bulk delete', id, err); } }
-          selectedIds.clear();
-          await renderFoldersAndEntries();
         });
 
         document.getElementById('importBtn').addEventListener('click', ()=> document.getElementById('importFile').click());
