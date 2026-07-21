@@ -240,6 +240,12 @@
     .export-menu[hidden]{display:none}
     .export-menu button{display:block;width:100%;text-align:left;background:none;border:none;padding:10px 14px;font-size:0.9rem;cursor:pointer;color:#233}
     .export-menu button:hover{background:#eef5fe}
+    .export-menu button.danger{color:#b23b3b}
+    /* Přepínač zobrazení Záznamů (složky / vše pod sebou) */
+    .view-toggle{display:inline-flex;border:1px solid #cdddf3;border-radius:8px;overflow:hidden}
+    .view-toggle .vt-btn{background:#fff;border:none;padding:8px 12px;font-size:0.85rem;cursor:pointer;color:#33506f;white-space:nowrap}
+    .view-toggle .vt-btn.active{background:var(--brand);color:#fff}
+    .view-toggle .vt-btn+.vt-btn{border-left:1px solid #cdddf3}
     .conditional[hidden]{display:none}
     /* Dvě fotky vedle sebe (na úzké obrazovce pod sebou) */
     .photos-compare{display:flex;gap:16px;flex-wrap:wrap;margin-top:8px}
@@ -407,6 +413,10 @@
             <h1 class="view-head">📁 Záznamy</h1>
             <div class="form-actions" style="margin-bottom:1rem">
               <button id="backToFoldersBtn" type="button" class="btn-secondary" style="display: none;">Zpět na složky</button>
+              <div class="view-toggle">
+                <button id="view-folders" type="button" class="vt-btn active">📁 Složky</button>
+                <button id="view-flat" type="button" class="vt-btn">📋 Vše pod sebou</button>
+              </div>
               <span class="export-wrap">
                 <button id="exportBtn" type="button" class="btn-secondary">Exportovat ▾</button>
                 <div id="export-menu" class="export-menu" hidden>
@@ -414,9 +424,14 @@
                   <button type="button" data-export="xlsx">Excel (XLSX) – tabulka bez fotek</button>
                 </div>
               </span>
-              <button id="importBtn" type="button" class="btn-secondary">Importovat data</button>
-              <button id="shrinkBtn" type="button" class="btn-secondary">🗜️ Zmenšit velké fotky</button>
-              <button id="clearAll" type="button" class="btn-secondary">Vymazat vše</button>
+              <span class="export-wrap">
+                <button id="moreBtn" type="button" class="btn-secondary">⋯ Více</button>
+                <div id="more-menu" class="export-menu" hidden>
+                  <button type="button" id="importBtn">Importovat data</button>
+                  <button type="button" id="shrinkBtn">🗜️ Zmenšit velké fotky</button>
+                  <button type="button" id="clearAll" class="danger">🗑️ Vymazat vše</button>
+                </div>
+              </span>
               <input type="file" id="importFile" accept=".json" style="display: none;">
             </div>
 
@@ -481,7 +496,7 @@
 
           <footer>
             Aplikace funguje offline. Data jsou uložena lokálně v zařízení (IndexedDB).<br>
-            <span style="color:var(--muted);font-size:0.95em;">Verze aplikace: v3.2.0-test · Build 2026-07-21·24</span>
+            <span style="color:var(--muted);font-size:0.95em;">Verze aplikace: v3.2.0-test · Build 2026-07-21·25</span>
           </footer>
         </main>
       </div>
@@ -1556,6 +1571,7 @@
       // ================= Filtrování / hledání / stránkování (vše lokálně nad IndexedDB) =================
       const PAGE_SIZE = 50;
       const filterState = { q:'', from:'', to:'', folder:'', office:'', rekl:'', inspectors:[], sort:'new', page:1 };
+      let znViewMode = localStorage.getItem('kk_zaznamy_view') || 'folders'; // 'folders' | 'flat'
       const selectedIds = new Set();
       let lastFiltered = []; // poslední vyfiltrovaná množina (pro „vybrat vše" a export)
 
@@ -1712,7 +1728,7 @@
         wireEntriesTable(entriesEl, null);
         const cnt = document.getElementById('filter-count');
         cnt.hidden = false;
-        cnt.textContent = `Zobrazeno ${shown.length} z ${lastFiltered.length} vyfiltrovaných záznamů`;
+        cnt.textContent = `Zobrazeno ${shown.length} z ${lastFiltered.length} ${filterActive()?'vyfiltrovaných ':''}záznamů`;
         document.getElementById('load-more-wrap').hidden = shown.length >= lastFiltered.length;
         document.getElementById('bulk-bar').hidden = false;
         if(statusEl) statusEl.textContent = `${lastFiltered.length} záznamů (filtr)`;
@@ -1989,8 +2005,8 @@
         populateFolderFilter(allEntries); // udržuj nabídku složek ve filtru aktuální
         buildInspectorFilter();           // a chipy kontrolujících (dle kk_persons)
 
-        // Aktivní filtr → plochý filtrovaný seznam místo složek
-        if(filterActive()){ await renderFilteredResults(allEntries); return; }
+        // Aktivní filtr NEBO režim „Vše pod sebou" → plochý seznam napříč složkami
+        if(filterActive() || znViewMode==='flat'){ await renderFilteredResults(allEntries); return; }
         document.getElementById('bulk-bar').hidden = true;
         document.getElementById('filter-count').hidden = true;
         document.getElementById('load-more-wrap').hidden = true;
@@ -2541,9 +2557,22 @@
         });
         // Export menu (JSON / XLSX) – exportuje aktuálně vyfiltrovanou množinu
         const exportMenu = document.getElementById('export-menu');
-        document.getElementById('exportBtn').addEventListener('click', (e)=>{ e.stopPropagation(); exportMenu.hidden = !exportMenu.hidden; });
-        document.addEventListener('click', (e)=>{ if(!e.target.closest('.export-wrap')) exportMenu.hidden = true; });
+        const moreMenu = document.getElementById('more-menu');
+        document.getElementById('exportBtn').addEventListener('click', (e)=>{ e.stopPropagation(); moreMenu.hidden = true; exportMenu.hidden = !exportMenu.hidden; });
+        document.getElementById('moreBtn').addEventListener('click', (e)=>{ e.stopPropagation(); exportMenu.hidden = true; moreMenu.hidden = !moreMenu.hidden; });
+        moreMenu.addEventListener('click', ()=> setTimeout(()=>{ moreMenu.hidden = true; }, 0)); // po volbě položky zavři
+        document.addEventListener('click', (e)=>{ if(!e.target.closest('.export-wrap')){ exportMenu.hidden = true; moreMenu.hidden = true; } });
         document.addEventListener('click', ()=> document.querySelectorAll('.entry-menu:not([hidden])').forEach(m=> m.hidden = true)); // zavři ⋯ menu klikem jinam
+
+        // Přepínač zobrazení: Složky / Vše pod sebou
+        function updateViewToggle(){
+          const f=document.getElementById('view-folders'), l=document.getElementById('view-flat');
+          if(f) f.classList.toggle('active', znViewMode==='folders');
+          if(l) l.classList.toggle('active', znViewMode==='flat');
+        }
+        document.getElementById('view-folders').addEventListener('click', ()=>{ znViewMode='folders'; localStorage.setItem('kk_zaznamy_view','folders'); filterState.page=1; updateViewToggle(); renderFoldersAndEntries(); });
+        document.getElementById('view-flat').addEventListener('click', ()=>{ znViewMode='flat'; localStorage.setItem('kk_zaznamy_view','flat'); filterState.page=1; updateViewToggle(); renderFoldersAndEntries(); });
+        updateViewToggle();
         exportMenu.querySelectorAll('button[data-export]').forEach(b=> b.addEventListener('click', async ()=>{
           exportMenu.hidden = true;
           try{
