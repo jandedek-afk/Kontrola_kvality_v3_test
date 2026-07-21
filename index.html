@@ -98,6 +98,9 @@
     .zn-table .c-office{text-align:center}
     .zn-table .c-date{white-space:nowrap}
     .zn-table .c-gps{white-space:nowrap;color:var(--muted);font-size:0.8rem}
+    .zn-table .c-stari{white-space:nowrap}
+    .cols-menu-label{display:flex;align-items:center;gap:8px;padding:7px 14px;cursor:pointer;font-size:0.88rem;white-space:nowrap}
+    .cols-menu-label:hover{background:#eef5fe}
     .zn-table .cell-clip{max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
     .zn-table .entry-pick{transform:scale(1.2);cursor:pointer}
     .zn-table .verdict-sm{display:inline-block;padding:2px 10px;border-radius:999px;font-weight:600;white-space:nowrap}
@@ -425,6 +428,10 @@
                 </div>
               </span>
               <span class="export-wrap">
+                <button id="colsBtn" type="button" class="btn-secondary">Sloupce ▾</button>
+                <div id="cols-menu" class="export-menu" hidden></div>
+              </span>
+              <span class="export-wrap">
                 <button id="moreBtn" type="button" class="btn-secondary">⋯ Více</button>
                 <div id="more-menu" class="export-menu" hidden>
                   <button type="button" id="importBtn">Importovat data</button>
@@ -496,7 +503,7 @@
 
           <footer>
             Aplikace funguje offline. Data jsou uložena lokálně v zařízení (IndexedDB).<br>
-            <span style="color:var(--muted);font-size:0.95em;">Verze aplikace: v3.2.0-test · Build 2026-07-21·25</span>
+            <span style="color:var(--muted);font-size:0.95em;">Verze aplikace: v3.2.0-test · Build 2026-07-21·26</span>
           </footer>
         </main>
       </div>
@@ -1572,6 +1579,13 @@
       const PAGE_SIZE = 50;
       const filterState = { q:'', from:'', to:'', folder:'', office:'', rekl:'', inspectors:[], sort:'new', page:1 };
       let znViewMode = localStorage.getItem('kk_zaznamy_view') || 'folders'; // 'folders' | 'flat'
+      // Sloupce tabulky Záznamů + které jsou skryté (uloženo v localStorage)
+      const ZN_COLUMNS = [
+        {key:'foto', label:'Foto'}, {key:'date', label:'Datum a čas'}, {key:'stari', label:'Stáří'},
+        {key:'folder', label:'Složka'}, {key:'gps', label:'GPS'}, {key:'long', label:'Podélné'},
+        {key:'cross', label:'Příčné'}, {key:'rov', label:'Rovinatost'}, {key:'note', label:'Poznámka'}, {key:'office', label:'Office'},
+      ];
+      const znColsHidden = new Set(JSON.parse(localStorage.getItem('kk_zaznamy_cols_hidden')||'[]'));
       const selectedIds = new Set();
       let lastFiltered = []; // poslední vyfiltrovaná množina (pro „vybrat vše" a export)
 
@@ -1665,30 +1679,34 @@
           ? '<span class="verdict-sm ok">vyhovující</span>'
           : '<span class="verdict-sm bad">nevyhovující</span>';
       }
-      // Jeden záznam → řádek tabulky (hodnoty zarovnané do sloupců)
+      // Buňka záznamu podle klíče sloupce
+      function entryCellHtml(key, e){
+        switch(key){
+          case 'foto': return `<td class="c-foto"><img class="thumb-sm" src="${e.photo}" alt="foto" loading="lazy" data-act="view"></td>`;
+          case 'date': return `<td class="c-date">${escapeHtml(e.timeText||'')}${e.synced?'':' <span class="badge-unsynced">⏳</span>'}</td>`;
+          case 'stari': return `<td class="c-stari">${escapeHtml(repairAgeText(e.office||{})||'—')}</td>`;
+          case 'folder': return `<td>${escapeHtml(e.folder||'Bez složky')}</td>`;
+          case 'gps': return `<td class="c-gps">${escapeHtml(e.coords?`${e.coords.lat}, ${e.coords.lon}`:'—')}</td>`;
+          case 'long': return `<td>${escapeHtml(e.longNote||'—')}</td>`;
+          case 'cross': return `<td>${escapeHtml(e.crossNote||'—')}</td>`;
+          case 'rov': return `<td>${rovinatostBadgeSmall(e.longNote, e.crossNote)}</td>`;
+          case 'note': return `<td class="c-note"><div class="cell-clip" title="${escAttr(e.note||'')}">${escapeHtml(e.note||'—')}</div></td>`;
+          case 'office': return `<td class="c-office"><span class="status-pill ${e.officeDone?'done':'wait'}">${e.officeDone?'✓':'⏳'}</span></td>`;
+        }
+        return '';
+      }
+      function znVisibleCols(){ return ZN_COLUMNS.filter(c=> !znColsHidden.has(c.key)); }
+      // Jeden záznam → řádek tabulky (dle zapnutých sloupců)
       function buildEntryRow(e, withPick){
-        const coordsText = e.coords ? `${e.coords.lat}, ${e.coords.lon}` : '—';
-        const rovBadge = rovinatostBadgeSmall(e.longNote, e.crossNote);
-        const syncBadge = e.synced ? '' : ' <span class="badge-unsynced">⏳</span>';
-        const officeBadge = `<span class="status-pill ${e.officeDone?'done':'wait'}">${e.officeDone?'✓':'⏳'}</span>`;
         const pick = withPick ? `<td class="c-pick"><input type="checkbox" class="entry-pick" data-id="${escAttr(e.id)}" ${selectedIds.has(e.id)?'checked':''}></td>` : '';
-        return `<tr data-id="${escAttr(e.id)}">
-          ${pick}
-          <td class="c-act"><span class="entry-menu-wrap"><button type="button" class="entry-menu-btn" data-act="menu" aria-label="Akce">⋯</button><div class="entry-menu" hidden><button type="button" data-act="view">Zobrazit</button><button type="button" data-act="download">Stáhnout foto</button><button type="button" data-act="move">Přesunout</button><button type="button" data-act="delete" class="danger">Smazat</button></div></span></td>
-          <td class="c-foto"><img class="thumb-sm" src="${e.photo}" alt="foto" loading="lazy" data-act="view"></td>
-          <td class="c-date">${escapeHtml(e.timeText||'')}${syncBadge}</td>
-          <td>${escapeHtml(e.folder||'Bez složky')}</td>
-          <td class="c-gps">${escapeHtml(coordsText)}</td>
-          <td>${escapeHtml(e.longNote||'—')}</td>
-          <td>${escapeHtml(e.crossNote||'—')}</td>
-          <td>${rovBadge}</td>
-          <td class="c-note"><div class="cell-clip" title="${escAttr(e.note||'')}">${escapeHtml(e.note||'—')}</div></td>
-          <td class="c-office">${officeBadge}</td>
-        </tr>`;
+        const act = `<td class="c-act"><span class="entry-menu-wrap"><button type="button" class="entry-menu-btn" data-act="menu" aria-label="Akce">⋯</button><div class="entry-menu" hidden><button type="button" data-act="view">Zobrazit</button><button type="button" data-act="download">Stáhnout foto</button><button type="button" data-act="move">Přesunout</button><button type="button" data-act="delete" class="danger">Smazat</button></div></span></td>`;
+        const cells = znVisibleCols().map(c=> entryCellHtml(c.key, e)).join('');
+        return `<tr data-id="${escAttr(e.id)}">${pick}${act}${cells}</tr>`;
       }
       // Tabulka záznamů se záhlavím sloupců
       function buildEntriesTable(entries, withPick){
-        const head = `<thead><tr>${withPick?'<th class="c-pick"></th>':''}<th class="c-act">Akce</th><th class="c-foto">Foto</th><th>Datum a čas</th><th>Složka</th><th>GPS</th><th>Podélné</th><th>Příčné</th><th>Rovinatost</th><th>Poznámka</th><th class="c-office">Office</th></tr></thead>`;
+        const ths = znVisibleCols().map(c=>{ const cls = c.key==='office'?' class="c-office"':(c.key==='foto'?' class="c-foto"':(c.key==='stari'?' class="c-stari"':'')); return `<th${cls}>${escapeHtml(c.label)}</th>`; }).join('');
+        const head = `<thead><tr>${withPick?'<th class="c-pick"></th>':''}<th class="c-act">Akce</th>${ths}</tr></thead>`;
         return `<div class="zn-table-wrap"><table class="zn-table">${head}<tbody>${entries.map(e=> buildEntryRow(e, withPick)).join('')}</tbody></table></div>`;
       }
       // Delegované ovládání tabulky (klik na akce/menu, checkbox)
@@ -2558,11 +2576,26 @@
         // Export menu (JSON / XLSX) – exportuje aktuálně vyfiltrovanou množinu
         const exportMenu = document.getElementById('export-menu');
         const moreMenu = document.getElementById('more-menu');
-        document.getElementById('exportBtn').addEventListener('click', (e)=>{ e.stopPropagation(); moreMenu.hidden = true; exportMenu.hidden = !exportMenu.hidden; });
-        document.getElementById('moreBtn').addEventListener('click', (e)=>{ e.stopPropagation(); exportMenu.hidden = true; moreMenu.hidden = !moreMenu.hidden; });
+        const colsMenu = document.getElementById('cols-menu');
+        const allMenus = [exportMenu, moreMenu, colsMenu];
+        const openOnly = (m)=> allMenus.forEach(x=>{ if(x) x.hidden = (x===m ? !x.hidden : true); });
+        document.getElementById('exportBtn').addEventListener('click', (e)=>{ e.stopPropagation(); openOnly(exportMenu); });
+        document.getElementById('moreBtn').addEventListener('click', (e)=>{ e.stopPropagation(); openOnly(moreMenu); });
+        document.getElementById('colsBtn').addEventListener('click', (e)=>{ e.stopPropagation(); openOnly(colsMenu); });
         moreMenu.addEventListener('click', ()=> setTimeout(()=>{ moreMenu.hidden = true; }, 0)); // po volbě položky zavři
-        document.addEventListener('click', (e)=>{ if(!e.target.closest('.export-wrap')){ exportMenu.hidden = true; moreMenu.hidden = true; } });
+        document.addEventListener('click', (e)=>{ if(!e.target.closest('.export-wrap')) allMenus.forEach(m=>{ if(m) m.hidden = true; }); });
         document.addEventListener('click', ()=> document.querySelectorAll('.entry-menu:not([hidden])').forEach(m=> m.hidden = true)); // zavři ⋯ menu klikem jinam
+        // Menu „Sloupce" – zaškrtávátka viditelnosti sloupců
+        (function(){
+          if(!colsMenu) return;
+          colsMenu.innerHTML = ZN_COLUMNS.map(c=>`<label class="cols-menu-label"><input type="checkbox" data-col="${c.key}" ${znColsHidden.has(c.key)?'':'checked'}> ${escapeHtml(c.label)}</label>`).join('');
+          colsMenu.querySelectorAll('input[data-col]').forEach(cb=> cb.addEventListener('change', ()=>{
+            const k=cb.dataset.col;
+            if(cb.checked) znColsHidden.delete(k); else znColsHidden.add(k);
+            localStorage.setItem('kk_zaznamy_cols_hidden', JSON.stringify([...znColsHidden]));
+            renderFoldersAndEntries();
+          }));
+        })();
 
         // Přepínač zobrazení: Složky / Vše pod sebou
         function updateViewToggle(){
