@@ -85,6 +85,15 @@
     .entry-menu button{display:block;width:100%;text-align:left;background:none;border:none;padding:9px 14px;font-size:0.88rem;cursor:pointer;color:#233}
     .entry-menu button:hover{background:#eef5fe}
     .entry-menu button.danger{color:#b23b3b}
+    /* Dialog akcí záznamu (střed obrazovky) */
+    .action-sheet{position:fixed;inset:0;z-index:9700;background:rgba(0,0,0,0.35);display:flex;align-items:center;justify-content:center;padding:16px}
+    .action-sheet[hidden]{display:none}
+    .as-box{background:#fff;border-radius:14px;min-width:250px;max-width:92vw;box-shadow:0 12px 40px rgba(0,0,0,0.3);padding:6px}
+    .as-title{font-size:0.85rem;color:#5a6b7f;padding:10px 14px 8px;border-bottom:1px solid #eef1f6;margin-bottom:4px;font-weight:600}
+    .as-btn{display:block;width:100%;text-align:left;background:none;border:none;padding:13px 16px;font-size:0.95rem;cursor:pointer;color:#233;border-radius:8px}
+    .as-btn:hover{background:#eef5fe}
+    .as-btn.danger{color:#b23b3b}
+    .as-cancel{text-align:center;color:#5a6b7f;margin-top:4px;border-top:1px solid #eef1f6}
     /* Tabulka záznamů (zarovnané sloupce) */
     .zn-table-wrap{overflow:auto;max-height:62vh;background:#fff;border-radius:12px;box-shadow:0 2px 6px rgba(0,0,0,0.04)}
     .zn-table{width:100%;border-collapse:collapse;font-size:0.84rem}
@@ -503,7 +512,7 @@
 
           <footer>
             Aplikace funguje offline. Data jsou uložena lokálně v zařízení (IndexedDB).<br>
-            <span style="color:var(--muted);font-size:0.95em;">Verze aplikace: v3.2.0-test · Build 2026-07-21·26</span>
+            <span style="color:var(--muted);font-size:0.95em;">Verze aplikace: v3.2.0-test · Build 2026-07-21·27</span>
           </footer>
         </main>
       </div>
@@ -535,6 +544,17 @@
         <div id="fp-imgwrap"><img id="fp-img" src="" alt="foto" draggable="false"></div>
       </div>
       <button type="button" id="fp-reopen" hidden>📌 Otevřít foto</button>
+
+      <div id="action-sheet" class="action-sheet" hidden>
+        <div class="as-box">
+          <div class="as-title" id="as-title">Akce</div>
+          <button type="button" class="as-btn" data-as="view">👁️ Zobrazit</button>
+          <button type="button" class="as-btn" data-as="download">⬇️ Stáhnout foto</button>
+          <button type="button" class="as-btn" data-as="move">📁 Přesunout</button>
+          <button type="button" class="as-btn danger" data-as="delete">🗑️ Smazat</button>
+          <button type="button" class="as-btn as-cancel" data-as="cancel">Zavřít</button>
+        </div>
+      </div>
 
       <script>
       // --- Supabase (cloud sdílení) ---
@@ -1699,7 +1719,7 @@
       // Jeden záznam → řádek tabulky (dle zapnutých sloupců)
       function buildEntryRow(e, withPick){
         const pick = withPick ? `<td class="c-pick"><input type="checkbox" class="entry-pick" data-id="${escAttr(e.id)}" ${selectedIds.has(e.id)?'checked':''}></td>` : '';
-        const act = `<td class="c-act"><span class="entry-menu-wrap"><button type="button" class="entry-menu-btn" data-act="menu" aria-label="Akce">⋯</button><div class="entry-menu" hidden><button type="button" data-act="view">Zobrazit</button><button type="button" data-act="download">Stáhnout foto</button><button type="button" data-act="move">Přesunout</button><button type="button" data-act="delete" class="danger">Smazat</button></div></span></td>`;
+        const act = `<td class="c-act"><button type="button" class="entry-menu-btn" data-act="menu" aria-label="Akce">⋯</button></td>`;
         const cells = znVisibleCols().map(c=> entryCellHtml(c.key, e)).join('');
         return `<tr data-id="${escAttr(e.id)}">${pick}${act}${cells}</tr>`;
       }
@@ -1718,20 +1738,19 @@
           const id = tr.dataset.id;
           switch(act.dataset.act){
             case 'view': viewFull(id); break;
-            case 'menu': {
-              ev.stopPropagation();
-              const menu = tr.querySelector('.entry-menu');
-              const wasHidden = menu.hidden;
-              document.querySelectorAll('.entry-menu').forEach(m=> m.hidden = true);
-              if(wasHidden){ const r = act.getBoundingClientRect(); menu.style.top = (r.bottom+4)+'px'; menu.style.left = Math.max(8, Math.min(r.left, window.innerWidth-158))+'px'; menu.hidden = false; }
-              break;
-            }
-            case 'download': { const e = await getEntryById(id); if(e) downloadPhoto(e.photo, id); break; }
-            case 'move': moveEntryPrompt(id, folderToShow); break;
-            case 'delete': if(confirm('Opravdu smazat tento záznam?')){ await deleteEntryFully(id); selectedIds.delete(id); await renderFoldersAndEntries(folderToShow); } break;
+            case 'menu': { ev.stopPropagation(); const e = await getEntryById(id); openActionSheet(e || { id }, folderToShow); break; }
           }
         });
       }
+
+      // Dialog akcí záznamu (střed obrazovky – spolehlivé i na mobilu, vždy vidět ke kterému řádku patří)
+      let _asEntry = null, _asFolder = null;
+      function openActionSheet(entry, folderToShow){
+        _asEntry = entry; _asFolder = folderToShow;
+        document.getElementById('as-title').textContent = `${entry.timeText||''}${entry.folder?(' · '+entry.folder):''}` || 'Akce';
+        document.getElementById('action-sheet').hidden = false;
+      }
+      function closeActionSheet(){ document.getElementById('action-sheet').hidden = true; _asEntry = null; }
 
       // Vykreslí plochý filtrovaný seznam (napříč složkami) + stránkování + hromadné akce
       async function renderFilteredResults(allEntries){
@@ -2585,6 +2604,20 @@
         moreMenu.addEventListener('click', ()=> setTimeout(()=>{ moreMenu.hidden = true; }, 0)); // po volbě položky zavři
         document.addEventListener('click', (e)=>{ if(!e.target.closest('.export-wrap')) allMenus.forEach(m=>{ if(m) m.hidden = true; }); });
         document.addEventListener('click', ()=> document.querySelectorAll('.entry-menu:not([hidden])').forEach(m=> m.hidden = true)); // zavři ⋯ menu klikem jinam
+
+        // Dialog akcí záznamu – obsluha tlačítek
+        const actionSheet = document.getElementById('action-sheet');
+        actionSheet.addEventListener('click', async (ev)=>{
+          if(ev.target === actionSheet){ closeActionSheet(); return; } // klik na pozadí
+          const b = ev.target.closest('[data-as]'); if(!b) return;
+          const a = b.dataset.as, e = _asEntry, folder = _asFolder;
+          if(a === 'cancel' || !e){ closeActionSheet(); return; }
+          closeActionSheet();
+          if(a === 'view') viewFull(e.id);
+          else if(a === 'download') downloadPhoto(e.photo, e.id);
+          else if(a === 'move') moveEntryPrompt(e.id, folder);
+          else if(a === 'delete'){ if(confirm('Opravdu smazat tento záznam?')){ await deleteEntryFully(e.id); selectedIds.delete(e.id); await renderFoldersAndEntries(folder); } }
+        });
         // Menu „Sloupce" – zaškrtávátka viditelnosti sloupců
         (function(){
           if(!colsMenu) return;
