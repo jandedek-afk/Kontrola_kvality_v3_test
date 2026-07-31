@@ -517,7 +517,7 @@
 
           <footer>
             Aplikace funguje offline. Data jsou uložena lokálně v zařízení (IndexedDB).<br>
-            <span style="color:var(--muted);font-size:0.95em;">Verze aplikace: v3.2.0-test · Build 2026-07-21·31</span>
+            <span style="color:var(--muted);font-size:0.95em;">Verze aplikace: v3.2.0-test · Build 2026-07-21·32</span>
           </footer>
         </main>
       </div>
@@ -1047,6 +1047,8 @@
 
       function escAttr(s){ return escapeHtml(s).replaceAll("'","&#39;"); }
       function todayISODate(){ const d=new Date(); const p=n=>String(n).padStart(2,'0'); return `${d.getFullYear()}-${p(d.getMonth()+1)}-${p(d.getDate())}`; }
+      // ISO datum (RRRR-MM-DD) z timestampu záznamu; při chybě dnešek
+      function isoDateFromTs(ts){ const d=new Date(ts); if(isNaN(d)) return todayISODate(); const p=n=>String(n).padStart(2,'0'); return `${d.getFullYear()}-${p(d.getMonth()+1)}-${p(d.getDate())}`; }
 
       // Plovoucí okno s fotkami (při kontrole + po opravě) – pomůcka při vizuálním posouzení
       const floatState = { pri:'', po:'', tab:'pri', zoom:1, panX:0, panY:0 };
@@ -1155,7 +1157,7 @@
         // předvyplnění: dnešní kontrolóři + dnešní datum, pokud ještě nevyplněno
         const defaults = {
           kontrolu_provedl: o.kontrolu_provedl || entry.inspectors || localStorage.getItem('kk_dnesni_kontroloval') || '',
-          datum_kontroly: o.datum_kontroly || todayISODate(),
+          datum_kontroly: o.datum_kontroly || isoDateFromTs(entry.time),
         };
         const rovBadge = rovinatostBadge(entry.longNote, entry.crossNote) || '<span class="verdict">nezměřeno</span>';
         const afterSrc = officePhotos.afterPhoto || entry.afterPhoto || '';
