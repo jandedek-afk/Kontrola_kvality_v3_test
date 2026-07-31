@@ -208,13 +208,13 @@
     .office-section{font-weight:700;color:var(--brand);font-size:1.02rem;margin:1.5rem 0 0.25rem;padding-top:0.9rem;border-top:1px solid #eef1f6}
     .office-section:first-of-type{margin-top:0;padding-top:0;border-top:none}
     .of-field{margin-top:0.9rem}
-    .of-field > label{font-weight:600;display:block;margin-bottom:5px;font-size:0.92rem;color:#33414f}
+    .of-field > label{font-weight:600;display:block;margin-bottom:5px;font-size:0.92rem;color:#33414f;position:relative}
     .of-field .hint{font-weight:400;color:var(--muted);font-size:0.8rem;display:block;margin-top:2px}
     .of-field input[type=text],.of-field input[type=number],.of-field input[type=date],.of-field textarea,.of-field select{width:100%;padding:9px 10px;border:1px solid #e0e0e0;border-radius:8px;font-family:inherit;font-size:0.93rem;background:#fff}
     .of-field textarea{min-height:56px;resize:vertical}
     .of-readonly{background:#f4f8fe;border:1px solid #e6eef9;border-radius:8px;padding:9px 10px;font-size:0.93rem;color:#33414f;white-space:pre-wrap;word-break:break-word}
-    /* Vysvětlivka „i" v office: normální blok pod popiskem (ne absolutní – vždy se zobrazí ve správném místě) */
-    .of-field .info-box{position:static;left:auto;right:auto;top:auto;margin:4px 0 2px}
+    /* Vysvětlivka „i" v office: překryv pod popiskem (top:100% → sám se umístí i u víceřádkového popisku) */
+    .of-field .info-box{left:0;right:0;top:calc(100% + 4px);margin:0}
     /* Dvě příbuzné otázky vedle sebe (např. okolí opravy: realizace vs. kontrola) */
     .of-pair{display:flex;gap:16px;align-items:flex-start}
     .of-pair > .of-field{flex:1 1 0;min-width:0}
@@ -525,7 +525,7 @@
 
           <footer>
             Aplikace funguje offline. Data jsou uložena lokálně v zařízení (IndexedDB).<br>
-            <span style="color:var(--muted);font-size:0.95em;">Verze aplikace: v3.2.0-test · Build 2026-07-21·37</span>
+            <span style="color:var(--muted);font-size:0.95em;">Verze aplikace: v3.2.0-test · Build 2026-07-21·38</span>
           </footer>
         </main>
       </div>
@@ -1148,7 +1148,7 @@
         // volitelná vysvětlivka „i" (obsah je HTML) – tlačítko vedle popisku, okénko pod ním
         const infoBtn = f.info ? ` <button type="button" class="info-btn" id="of-info-btn-${f.key}" aria-label="Vysvětlivka" aria-expanded="false">i</button>` : '';
         const infoBox = f.info ? `<div id="of-info-${f.key}" class="info-box" hidden>${f.info}</div>` : '';
-        return `<div class="of-field conditional"${showAttr}><label>${escapeHtml(f.label)}${infoBtn}${hint}</label>${infoBox}${inner}</div>`;
+        return `<div class="of-field conditional"${showAttr}><label>${escapeHtml(f.label)}${infoBtn}${hint}${infoBox}</label>${inner}</div>`;
       }
 
       async function renderOfficeForm(body){
