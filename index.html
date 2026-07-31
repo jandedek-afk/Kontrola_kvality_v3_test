@@ -518,7 +518,7 @@
 
           <footer>
             Aplikace funguje offline. Data jsou uložena lokálně v zařízení (IndexedDB).<br>
-            <span style="color:var(--muted);font-size:0.95em;">Verze aplikace: v3.2.0-test · Build 2026-07-21·33</span>
+            <span style="color:var(--muted);font-size:0.95em;">Verze aplikace: v3.2.0-test · Build 2026-07-21·34</span>
           </footer>
         </main>
       </div>
@@ -2422,25 +2422,30 @@
             floatState.zoom = z;
             clampFloatPan(); applyFloatTransform();
           }, { passive:false });
-          // Posun tažením (jen když je přiblíženo); jinak klik nechává otevřít fullscreen
+          // Posun tažením (jen když je přiblíženo). Posluchače dáváme na OBAL (div), ne na <img>,
+          // aby se posun nervalo s nativním přetahováním obrázku (červený „zákaz" / no-drop).
           let ipan = null;
-          fimg.addEventListener('dragstart', e=> e.preventDefault()); // vypni nativní přetahování obrázku (kurzor „zákaz")
-          fimg.addEventListener('pointerdown', e=>{
+          const killDrag = e=> e.preventDefault();
+          wrap.addEventListener('dragstart', killDrag);
+          fimg.addEventListener('dragstart', killDrag);
+          wrap.addEventListener('pointerdown', e=>{
             if(floatState.zoom <= 1) return;
             e.preventDefault();
-            ipan = { x:e.clientX, y:e.clientY, px:floatState.panX, py:floatState.panY };
+            ipan = { id:e.pointerId, x:e.clientX, y:e.clientY, px:floatState.panX, py:floatState.panY };
             fimg.classList.add('grabbing');
-            try{ fimg.setPointerCapture(e.pointerId); }catch(_){}
+            try{ wrap.setPointerCapture(e.pointerId); }catch(_){}
           });
-          fimg.addEventListener('pointermove', e=>{
+          wrap.addEventListener('pointermove', e=>{
             if(!ipan) return;
+            e.preventDefault();
             floatState.panX = ipan.px + (e.clientX - ipan.x);
             floatState.panY = ipan.py + (e.clientY - ipan.y);
             clampFloatPan(); applyFloatTransform();
           });
-          const endPan = e=>{ if(ipan){ ipan = null; fimg.classList.remove('grabbing'); try{ fimg.releasePointerCapture(e.pointerId); }catch(_){} } };
-          fimg.addEventListener('pointerup', endPan);
-          fimg.addEventListener('pointercancel', endPan);
+          const endPan = e=>{ if(ipan){ const id=ipan.id; ipan = null; fimg.classList.remove('grabbing'); try{ wrap.releasePointerCapture(id); }catch(_){} } };
+          wrap.addEventListener('pointerup', endPan);
+          wrap.addEventListener('pointercancel', endPan);
+          wrap.addEventListener('lostpointercapture', endPan);
           // Dvojklik = reset přiblížení zpět na 100 %
           fimg.addEventListener('dblclick', e=>{ e.preventDefault(); resetFloatZoom(); });
           // Klik na fotku (při 100 %) → zvětšit / zmenšit okno (jako tlačítko ⤢)
