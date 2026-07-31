@@ -213,6 +213,8 @@
     .of-field input[type=text],.of-field input[type=number],.of-field input[type=date],.of-field textarea,.of-field select{width:100%;padding:9px 10px;border:1px solid #e0e0e0;border-radius:8px;font-family:inherit;font-size:0.93rem;background:#fff}
     .of-field textarea{min-height:56px;resize:vertical}
     .of-readonly{background:#f4f8fe;border:1px solid #e6eef9;border-radius:8px;padding:9px 10px;font-size:0.93rem;color:#33414f;white-space:pre-wrap;word-break:break-word}
+    /* Vysvětlivka „i" v office: normální blok pod popiskem (ne absolutní – vždy se zobrazí ve správném místě) */
+    .of-field .info-box{position:static;left:auto;right:auto;top:auto;margin:4px 0 2px}
     /* Dvě příbuzné otázky vedle sebe (např. okolí opravy: realizace vs. kontrola) */
     .of-pair{display:flex;gap:16px;align-items:flex-start}
     .of-pair > .of-field{flex:1 1 0;min-width:0}
@@ -523,7 +525,7 @@
 
           <footer>
             Aplikace funguje offline. Data jsou uložena lokálně v zařízení (IndexedDB).<br>
-            <span style="color:var(--muted);font-size:0.95em;">Verze aplikace: v3.2.0-test · Build 2026-07-21·36</span>
+            <span style="color:var(--muted);font-size:0.95em;">Verze aplikace: v3.2.0-test · Build 2026-07-21·37</span>
           </footer>
         </main>
       </div>
