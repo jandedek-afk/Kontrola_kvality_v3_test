@@ -528,7 +528,7 @@
 
           <footer>
             Aplikace funguje offline. Data jsou uložena lokálně v zařízení (IndexedDB).<br>
-            <span style="color:var(--muted);font-size:0.95em;">Verze aplikace: v3.2.0-test · Build 2026-07-21·39</span>
+            <span style="color:var(--muted);font-size:0.95em;">Verze aplikace: v3.2.0-test · Build 2026-07-21·40</span>
           </footer>
         </main>
       </div>
@@ -1017,7 +1017,7 @@
           { key:'oprava', label:'Oprava (správce, komunikace, datum a čas ukončení)', type:'text' },
           { key:'kontrolu_provedl', label:'Kontrolu provedl', type:'names' },
           { key:'datum_kontroly', label:'Datum kontroly', type:'date' },
-          { key:'oprava_jen_pec', label:'Způsob opravy', type:'checkbox', checkLabel:'Oprava pecí FF-9 (nezaškrtnuto = cestářem FT-3)' },
+          { key:'oprava_jen_pec', label:'', type:'checkbox', checkLabel:'Oprava pecí FF-9' },
         ]},
         { title: 'Vizuální posouzení opravy', fields: [
           { key:'textura', label:'Textura', type:'radio', options:['Rovnoměrná','Nerovnoměrná','Segregovaná'] },
@@ -1154,7 +1154,8 @@
         // volitelná vysvětlivka „i" (obsah je HTML) – tlačítko vedle popisku, okénko pod ním
         const infoBtn = f.info ? ` <button type="button" class="info-btn" id="of-info-btn-${f.key}" aria-label="Vysvětlivka" aria-expanded="false">i</button>` : '';
         const infoBox = f.info ? `<div id="of-info-${f.key}" class="info-box" hidden>${f.info}</div>` : '';
-        return `<div class="of-field conditional"${showAttr}><label>${escapeHtml(f.label)}${infoBtn}${hint}${infoBox}</label>${inner}</div>`;
+        const labelHtml = f.label ? `<label>${escapeHtml(f.label)}${infoBtn}${hint}${infoBox}</label>` : '';
+        return `<div class="of-field conditional"${showAttr}>${labelHtml}${inner}</div>`;
       }
 
       async function renderOfficeForm(body){
