@@ -212,6 +212,7 @@
     .of-field .hint{font-weight:400;color:var(--muted);font-size:0.8rem;display:block;margin-top:2px}
     .of-field input[type=text],.of-field input[type=number],.of-field input[type=date],.of-field textarea,.of-field select{width:100%;padding:9px 10px;border:1px solid #e0e0e0;border-radius:8px;font-family:inherit;font-size:0.93rem;background:#fff}
     .of-field textarea{min-height:56px;resize:vertical}
+    .of-readonly{background:#f4f8fe;border:1px solid #e6eef9;border-radius:8px;padding:9px 10px;font-size:0.93rem;color:#33414f;white-space:pre-wrap;word-break:break-word}
     .radio-set{display:flex;flex-direction:column;gap:6px;margin-top:4px}
     .radio-set label{display:flex;align-items:center;gap:8px;font-weight:400;font-size:0.9rem;padding:7px 10px;border:1px solid #e6eef9;border-radius:8px;cursor:pointer;margin:0}
     .radio-set label:hover{background:#f7fafe}
@@ -517,7 +518,7 @@
 
           <footer>
             Aplikace funguje offline. Data jsou uložena lokálně v zařízení (IndexedDB).<br>
-            <span style="color:var(--muted);font-size:0.95em;">Verze aplikace: v3.2.0-test · Build 2026-07-21·32</span>
+            <span style="color:var(--muted);font-size:0.95em;">Verze aplikace: v3.2.0-test · Build 2026-07-21·33</span>
           </footer>
         </main>
       </div>
@@ -1006,6 +1007,7 @@
           { key:'oprava', label:'Oprava (správce, komunikace, datum a čas ukončení)', type:'text' },
           { key:'kontrolu_provedl', label:'Kontrolu provedl', type:'names' },
           { key:'datum_kontroly', label:'Datum kontroly', type:'date' },
+          { key:'oprava_jen_pec', label:'Opraveno pouze pecí (bez cestáře)', type:'radio', options:['Ano','Ne'] },
         ]},
         { title: 'Vizuální posouzení opravy', fields: [
           { key:'textura', label:'Textura', type:'radio', options:['Rovnoměrná','Nerovnoměrná','Segregovaná'] },
@@ -1161,15 +1163,18 @@
         };
         const rovBadge = rovinatostBadge(entry.longNote, entry.crossNote) || '<span class="verdict">nezměřeno</span>';
         const afterSrc = officePhotos.afterPhoto || entry.afterPhoto || '';
+        const roadNote = (entry.note||'').trim();
         const sectionsHtml = OFFICE_SCHEMA.map(sec=>{
           const fields = sec.fields.map(f=>{
             let val = (f.key in o) ? o[f.key] : (defaults[f.key] !== undefined ? defaults[f.key] : '');
             return officeFieldHtml(f, val);
           }).join('');
-          let extra = '';
-          // za sekci Vizuální posouzení vlož automaticky vyhodnocenou měřenou rovinatost
-          if(sec.title === 'Poznámka k rovinatosti a vizuální kontrole') extra = '';
-          return `<div class="office-section">${escapeHtml(sec.title)}</div>${fields}${extra}`;
+          let before = '';
+          // v sekci poznámek ukaž (read-only) poznámku zapsanou na silnici při výjezdu
+          if(sec.title === 'Poznámka k rovinatosti a vizuální kontrole' && roadNote){
+            before = `<div class="of-field"><label>Poznámka z výjezdu (ze silnice)</label><div class="of-readonly">${escapeHtml(roadNote)}</div></div>`;
+          }
+          return `<div class="office-section">${escapeHtml(sec.title)}</div>${before}${fields}`;
         }).join('');
 
         body.innerHTML = `
@@ -1861,7 +1866,8 @@
         const vyvrtLine = (o.vyvrt_proveden==='Ano')
           ? `Vývrt proveden: tloušťka ${escapeHtml(o.vyvrt_tloustka||'—')}; spojení vrstev ${escapeHtml(o.spojeni_vrstev||'—')}; na hraně ${escapeHtml(o.spojeni_hrana||'—')}; mezerovitost ${escapeHtml(o.mezerovitost||'—')}`
           : 'Nebyl proveden vývrt';
-        const poznParts=[]; if(o.office_note) poznParts.push(o.office_note); if(entry.vyjetaKolej) poznParts.push('Vyjetá kolej');
+        const pecLine = (o.oprava_jen_pec==='Ano') ? 'Oprava provedena pouze pecí (bez cestáře)' : (o.oprava_jen_pec==='Ne' ? 'Oprava provedena s cestářem' : '');
+        const poznParts=[]; if(entry.note) poznParts.push(entry.note); if(o.office_note) poznParts.push(o.office_note); if(entry.vyjetaKolej) poznParts.push('Vyjetá kolej');
         const pozn = poznParts.length ? escapeHtml(poznParts.join('; ')) : 'N/A';
         const photo = (src,cap)=> `<div style="text-align:center"><div style="font-size:11px;color:#555;margin-bottom:3px">${cap}</div>${src?`<img src="${src}" style="max-width:100%;max-height:250px;border:1px solid #ddd;border-radius:4px">`:'<div style="color:#999;padding:40px 0">bez fotky</div>'}</div>`;
         const twoCol=(l1,v1,l2,v2)=>`<tr><td style="width:50%;vertical-align:top;padding:3px 0"><b>${l1}</b><br>${v1}</td><td style="width:50%;vertical-align:top;padding:3px 0"><b>${l2}</b><br>${v2}</td></tr>`;
@@ -1900,6 +1906,7 @@
           <div style="border-top:1px solid #ccc;margin-top:6px;padding-top:5px">${rovLine}</div>
           <div style="padding-top:3px">${troxlerLine}</div>
           <div style="padding-top:3px">${vyvrtLine}</div>
+          ${pecLine?`<div style="padding-top:3px">${pecLine}</div>`:''}
           ${sec('Poznámky')}
           <div>${pozn}</div>
           <table style="width:100%;border-collapse:collapse;margin-top:auto;border-top:1px solid #ccc;font-size:9px;color:#666"><tr>
@@ -1937,8 +1944,9 @@
         const vyvrtLine = (o.vyvrt_proveden==='Ano')
           ? `Vývrt proveden: tloušťka ${o.vyvrt_tloustka||'—'}; spojení vrstev ${o.spojeni_vrstev||'—'}; na hraně ${o.spojeni_hrana||'—'}; mezerovitost ${o.mezerovitost||'—'}`
           : 'Nebyl proveden vývrt';
-        const pp=[]; if(o.office_note) pp.push(o.office_note); if(entry.vyjetaKolej) pp.push('Vyjetá kolej');
-        return { rovLine, troxlerLine, vyvrtLine, pozn: pp.length?pp.join('; '):'N/A' };
+        const pecLine = (o.oprava_jen_pec==='Ano') ? 'Oprava provedena pouze pecí (bez cestáře)' : (o.oprava_jen_pec==='Ne' ? 'Oprava provedena s cestářem' : '');
+        const pp=[]; if(entry.note) pp.push(entry.note); if(o.office_note) pp.push(o.office_note); if(entry.vyjetaKolej) pp.push('Vyjetá kolej');
+        return { rovLine, troxlerLine, vyvrtLine, pecLine, pozn: pp.length?pp.join('; '):'N/A' };
       }
 
       // Vektorové PDF s vyhledatelným textem (jsPDF + DejaVu font)
@@ -1995,7 +2003,7 @@
         y=Math.max(yA,yB)+3; pdf.setDrawColor(205); pdf.line(M,y,pageW-M,y); y+=5;
         const L=protocolComputedLines(entry,o);
         F('normal',10); pdf.setTextColor(30,30,30);
-        [L.rovLine,L.troxlerLine,L.vyvrtLine].forEach(line=>{ const ls=pdf.splitTextToSize(line,cW); pdf.text(ls,M,y); y+=ls.length*4.8; });
+        [L.rovLine,L.troxlerLine,L.vyvrtLine,L.pecLine].filter(Boolean).forEach(line=>{ const ls=pdf.splitTextToSize(line,cW); pdf.text(ls,M,y); y+=ls.length*4.8; });
         y+=2;
         // Poznámky
         section('Poznámky');
