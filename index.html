@@ -212,6 +212,9 @@
     .of-field .hint{font-weight:400;color:var(--muted);font-size:0.8rem;display:block;margin-top:2px}
     .of-field input[type=text],.of-field input[type=number],.of-field input[type=date],.of-field textarea,.of-field select{width:100%;padding:9px 10px;border:1px solid #e0e0e0;border-radius:8px;font-family:inherit;font-size:0.93rem;background:#fff}
     .of-field textarea{min-height:56px;resize:vertical}
+    .of-check{display:flex;align-items:center;gap:10px;font-weight:400;font-size:0.93rem;padding:9px 10px;border:1px solid #e6eef9;border-radius:8px;cursor:pointer;margin:0}
+    .of-check:hover{background:#f7fafe}
+    .of-check input{width:18px;height:18px;flex:0 0 auto;margin:0;cursor:pointer}
     .of-readonly{background:#f4f8fe;border:1px solid #e6eef9;border-radius:8px;padding:9px 10px;font-size:0.93rem;color:#33414f;white-space:pre-wrap;word-break:break-word}
     /* Vysvětlivka „i" v office: překryv pod popiskem (top:100% → sám se umístí i u víceřádkového popisku) */
     .of-field .info-box{left:0;right:0;top:calc(100% + 4px);margin:0}
@@ -525,7 +528,7 @@
 
           <footer>
             Aplikace funguje offline. Data jsou uložena lokálně v zařízení (IndexedDB).<br>
-            <span style="color:var(--muted);font-size:0.95em;">Verze aplikace: v3.2.0-test · Build 2026-07-21·38</span>
+            <span style="color:var(--muted);font-size:0.95em;">Verze aplikace: v3.2.0-test · Build 2026-07-21·39</span>
           </footer>
         </main>
       </div>
@@ -1014,7 +1017,7 @@
           { key:'oprava', label:'Oprava (správce, komunikace, datum a čas ukončení)', type:'text' },
           { key:'kontrolu_provedl', label:'Kontrolu provedl', type:'names' },
           { key:'datum_kontroly', label:'Datum kontroly', type:'date' },
-          { key:'oprava_jen_pec', label:'Opraveno pouze pecí (bez cestáře)', type:'radio', options:['Ano','Ne'] },
+          { key:'oprava_jen_pec', label:'Způsob opravy', type:'checkbox', checkLabel:'Oprava pecí FF-9 (nezaškrtnuto = cestářem FT-3)' },
         ]},
         { title: 'Vizuální posouzení opravy', fields: [
           { key:'textura', label:'Textura', type:'radio', options:['Rovnoměrná','Nerovnoměrná','Segregovaná'] },
@@ -1131,6 +1134,9 @@
             const ck = (val===o);
             return `<label class="${ck?'checked':''}"><input type="radio" name="of_${f.key}" value="${escAttr(o)}" ${ck?'checked':''}> ${escapeHtml(o)}</label>`;
           }).join('') + `</div>`;
+        } else if(f.type === 'checkbox'){
+          const ck = (val === 'Ano' || val === true || val === 'true');
+          inner = `<label class="of-check"><input type="checkbox" data-check-key="${f.key}" ${ck?'checked':''}> ${escapeHtml(f.checkLabel||'Ano')}</label>`;
         } else if(f.type === 'textarea'){
           inner = `<textarea data-key="${f.key}">${escapeHtml(val||'')}</textarea>`;
         } else if(f.type === 'date'){
@@ -1350,6 +1356,7 @@
         const o = {};
         body.querySelectorAll('[data-key]').forEach(inp=>{ o[inp.dataset.key] = inp.value.trim(); });
         body.querySelectorAll('input[type=radio]:checked').forEach(r=>{ o[r.name.replace(/^of_/,'')] = r.value; });
+        body.querySelectorAll('input[type=checkbox][data-check-key]').forEach(c=>{ o[c.dataset.checkKey] = c.checked ? 'Ano' : 'Ne'; });
         return o;
       }
 
@@ -1902,7 +1909,7 @@
         const vyvrtLine = (o.vyvrt_proveden==='Ano')
           ? `Vývrt proveden: tloušťka ${escapeHtml(o.vyvrt_tloustka||'—')}; spojení vrstev ${escapeHtml(o.spojeni_vrstev||'—')}; na hraně ${escapeHtml(o.spojeni_hrana||'—')}; mezerovitost ${escapeHtml(o.mezerovitost||'—')}`
           : 'Nebyl proveden vývrt';
-        const pecLine = (o.oprava_jen_pec==='Ano') ? 'Oprava provedena pouze pecí (bez cestáře)' : (o.oprava_jen_pec==='Ne' ? 'Oprava provedena s cestářem' : '');
+        const pecLine = (o.oprava_jen_pec==='Ano') ? 'Způsob opravy: pec FF-9' : 'Způsob opravy: cestář FT-3';
         const poznParts=[]; if(entry.note) poznParts.push(entry.note); if(o.office_note) poznParts.push(o.office_note); if(entry.vyjetaKolej) poznParts.push('Vyjetá kolej');
         const pozn = poznParts.length ? escapeHtml(poznParts.join('; ')) : 'N/A';
         const photo = (src,cap)=> `<div style="text-align:center"><div style="font-size:11px;color:#555;margin-bottom:3px">${cap}</div>${src?`<img src="${src}" style="max-width:100%;max-height:250px;border:1px solid #ddd;border-radius:4px">`:'<div style="color:#999;padding:40px 0">bez fotky</div>'}</div>`;
@@ -1980,7 +1987,7 @@
         const vyvrtLine = (o.vyvrt_proveden==='Ano')
           ? `Vývrt proveden: tloušťka ${o.vyvrt_tloustka||'—'}; spojení vrstev ${o.spojeni_vrstev||'—'}; na hraně ${o.spojeni_hrana||'—'}; mezerovitost ${o.mezerovitost||'—'}`
           : 'Nebyl proveden vývrt';
-        const pecLine = (o.oprava_jen_pec==='Ano') ? 'Oprava provedena pouze pecí (bez cestáře)' : (o.oprava_jen_pec==='Ne' ? 'Oprava provedena s cestářem' : '');
+        const pecLine = (o.oprava_jen_pec==='Ano') ? 'Způsob opravy: pec FF-9' : 'Způsob opravy: cestář FT-3';
         const pp=[]; if(entry.note) pp.push(entry.note); if(o.office_note) pp.push(o.office_note); if(entry.vyjetaKolej) pp.push('Vyjetá kolej');
         return { rovLine, troxlerLine, vyvrtLine, pecLine, pozn: pp.length?pp.join('; '):'N/A' };
       }
