@@ -213,6 +213,10 @@
     .of-field input[type=text],.of-field input[type=number],.of-field input[type=date],.of-field textarea,.of-field select{width:100%;padding:9px 10px;border:1px solid #e0e0e0;border-radius:8px;font-family:inherit;font-size:0.93rem;background:#fff}
     .of-field textarea{min-height:56px;resize:vertical}
     .of-readonly{background:#f4f8fe;border:1px solid #e6eef9;border-radius:8px;padding:9px 10px;font-size:0.93rem;color:#33414f;white-space:pre-wrap;word-break:break-word}
+    /* Dvě příbuzné otázky vedle sebe (např. okolí opravy: realizace vs. kontrola) */
+    .of-pair{display:flex;gap:16px}
+    .of-pair > .of-field{flex:1 1 0;min-width:0}
+    @media (max-width:640px){ .of-pair{flex-direction:column;gap:0} }
     .radio-set{display:flex;flex-direction:column;gap:6px;margin-top:4px}
     .radio-set label{display:flex;align-items:center;gap:8px;font-weight:400;font-size:0.9rem;padding:7px 10px;border:1px solid #e6eef9;border-radius:8px;cursor:pointer;margin:0}
     .radio-set label:hover{background:#f7fafe}
@@ -518,7 +522,7 @@
 
           <footer>
             Aplikace funguje offline. Data jsou uložena lokálně v zařízení (IndexedDB).<br>
-            <span style="color:var(--muted);font-size:0.95em;">Verze aplikace: v3.2.0-test · Build 2026-07-21·34</span>
+            <span style="color:var(--muted);font-size:0.95em;">Verze aplikace: v3.2.0-test · Build 2026-07-21·35</span>
           </footer>
         </main>
       </div>
@@ -1014,8 +1018,8 @@
           { key:'zhutneni', label:'Zhutnění', type:'radio', options:['Zhutněno','Přehutněno nebo částečně přehutněno','Nedohutněno'] },
           { key:'vizual_rovinatost', label:'Vizuální hodnocení rovinatosti', type:'radio', options:['Podélná i příčná vyhovující','Podélná nebo příčná nevyhovující','Podélná i příčná nevyhovující'] },
           { key:'trhliny', label:'Trhliny v opravě', type:'radio', options:['Nejsou žádné trhliny','Jsou ojedinělé trhliny v opravě','Jsou výrazné trhliny v opravě'] },
-          { key:'okoli_realizace', label:'(Interní) posouzení stavu okolí opravy v době realizace', type:'radio', hint:'1=v pořádku (výtluk ohraničen, bez navazujících trhlin), 2=mírně poškozené (trhliny v jiné stopě), 3=poškozené (navazují trhliny)', options:['Okolí opravy v pořádku','Okolí opravy mírně poškozené','Okolí opravy poškozené'] },
-          { key:'okoli_aktualni', label:'(Interní) posouzení stavu okolí opravy', type:'radio', options:['Okolí opravy v pořádku','Okolí opravy mírně poškozené','Okolí opravy poškozené'] },
+          { key:'okoli_realizace', label:'(Interní) posouzení stavu okolí opravy v době realizace', type:'radio', group:'okoli', hint:'1=v pořádku (výtluk ohraničen, bez navazujících trhlin), 2=mírně poškozené (trhliny v jiné stopě), 3=poškozené (navazují trhliny)', options:['Okolí opravy v pořádku','Okolí opravy mírně poškozené','Okolí opravy poškozené'] },
+          { key:'okoli_aktualni', label:'(Interní) posouzení stavu okolí opravy při kontrole', type:'radio', group:'okoli', options:['Okolí opravy v pořádku','Okolí opravy mírně poškozené','Okolí opravy poškozené'] },
         ]},
         { title: 'Poznámka k rovinatosti a vizuální kontrole', fields: [
           { key:'office_note', label:'Poznámka', type:'textarea' },
@@ -1164,11 +1168,21 @@
         const rovBadge = rovinatostBadge(entry.longNote, entry.crossNote) || '<span class="verdict">nezměřeno</span>';
         const afterSrc = officePhotos.afterPhoto || entry.afterPhoto || '';
         const roadNote = (entry.note||'').trim();
+        const valOf = f => (f.key in o) ? o[f.key] : (defaults[f.key] !== undefined ? defaults[f.key] : '');
         const sectionsHtml = OFFICE_SCHEMA.map(sec=>{
-          const fields = sec.fields.map(f=>{
-            let val = (f.key in o) ? o[f.key] : (defaults[f.key] !== undefined ? defaults[f.key] : '');
-            return officeFieldHtml(f, val);
-          }).join('');
+          // pole se stejnou `group` (jdoucí po sobě) vykresli vedle sebe do jednoho řádku
+          const parts = []; let i = 0;
+          while(i < sec.fields.length){
+            const f = sec.fields[i];
+            if(f.group){
+              const grp = [];
+              while(i < sec.fields.length && sec.fields[i].group === f.group){ grp.push(officeFieldHtml(sec.fields[i], valOf(sec.fields[i]))); i++; }
+              parts.push(`<div class="of-pair">${grp.join('')}</div>`);
+            } else {
+              parts.push(officeFieldHtml(f, valOf(f))); i++;
+            }
+          }
+          const fields = parts.join('');
           let before = '';
           // v sekci poznámek ukaž (read-only) poznámku zapsanou na silnici při výjezdu
           if(sec.title === 'Poznámka k rovinatosti a vizuální kontrole' && roadNote){
