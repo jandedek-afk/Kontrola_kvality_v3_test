@@ -528,7 +528,7 @@
 
           <footer>
             Aplikace funguje offline. Data jsou uložena lokálně v zařízení (IndexedDB).<br>
-            <span style="color:var(--muted);font-size:0.95em;">Verze aplikace: v3.2.0-test · Build 2026-07-21·40</span>
+            <span style="color:var(--muted);font-size:0.95em;">Verze aplikace: v3.2.0-test · Build 2026-07-21·41</span>
           </footer>
         </main>
       </div>
@@ -1104,21 +1104,25 @@
         if(officeCurrentId){ await renderOfficeForm(body); return; }
         hideFloatPhoto();
         const entries = await getAllEntries();
-        const rows = entries.map(e=>{
-          const done = e.officeDone;
+        // v Office ukazuj jen záznamy BEZ hotové office části; hotové se řeší/upravují v Záznamech
+        const pending = entries.filter(e=> !e.officeDone);
+        const rows = pending.map(e=>{
           const oprava = (e.office && e.office.oprava) || (e.repairInfo && e.repairInfo.oprava) || '';
           const sub = [e.folder||'', oprava].filter(Boolean).join(' · ') || 'bez identifikace';
           return `<div class="office-row" data-id="${escAttr(e.id)}">
             <img src="${e.photo||''}" alt="foto" onerror="this.style.visibility='hidden'">
             <div class="r-main"><div class="t">${escapeHtml(e.timeText||'')}</div><div class="s">${escapeHtml(sub)}</div></div>
-            <span class="status-pill ${done?'done':'wait'}">${done?'✓ hotovo':'⏳ čeká'}</span>
+            <span class="status-pill wait">⏳ čeká</span>
           </div>`;
         }).join('');
+        const empty = entries.length
+          ? '<div class="view-sub">Hotovo – všechny záznamy mají doplněnou office část. Úpravy najdeš v kartě 📁 Záznamy (detail → „Upravit office část").</div>'
+          : '<div class="view-sub">Zatím žádné záznamy. Nejdřív pořiď záznam v kartě Kontrolní výjezd.</div>';
         body.innerHTML = `
           <div class="office-picker">
             <strong>Vyber záznam k doplnění kontroly</strong>
-            <div class="view-sub" style="margin:6px 0 0">Klepni na záznam z výjezdu a doplň office údaje. „⏳ čeká" = ještě nemá office část.</div>
-            <div class="office-list">${rows || '<div class="view-sub">Zatím žádné záznamy. Nejdřív pořiď záznam v kartě Kontrolní výjezd.</div>'}</div>
+            <div class="view-sub" style="margin:6px 0 0">Klepni na záznam z výjezdu a doplň office údaje. Po uložení záznam z tohoto seznamu zmizí – dál se upravuje v Záznamech.</div>
+            <div class="office-list">${rows || empty}</div>
           </div>`;
         body.querySelectorAll('.office-row').forEach(r=>{
           r.addEventListener('click', ()=>{ openOfficeForm(r.dataset.id); });
