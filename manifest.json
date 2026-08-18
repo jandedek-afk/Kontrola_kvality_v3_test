@@ -1,6 +1,6 @@
 {
-  "name": "Kontrola kvality - Foto poznámky (v3 TEST)",
-  "short_name": "KvalitaFoto TEST",
+  "name": "Kontrola kvality (v3 TEST)",
+  "short_name": "Kontrola kvality",
   "start_url": "./index.html",
   "display": "standalone",
   "background_color": "#ffffff",
