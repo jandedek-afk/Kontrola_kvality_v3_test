@@ -1,0 +1,111 @@
+/* ============================================================================
+   Kontrola kvality — tokeny vzhledu
+   Vlož TENTO CELÝ BLOK do index.html místo řádku
+       :root{--brand:#1976d2;--muted:#666;--danger:#ff5252}
+   (~ř. 21). Nic jiného v CSS zatím neměň — appka funguje dál, jen se překreslí
+   barvy, protože zbytek pravidel čte var(--brand) / var(--muted) / var(--danger).
+
+   Zdroj: design systém projektu (tokens/colors.css, typography.css, spacing.css,
+   shape.css, dataviz.css). Tady jsou sloučené do jednoho :root, aby se dal
+   vložit do souboru bez build kroku.
+   ========================================================================= */
+:root{
+  /* --- legacy proměnné appky: JEN přemapované, jména zůstávají --- */
+  --brand:#C2461A;          /* bylo #1976d2 — oranžová FUTTEC */
+  --muted:#6C7981;          /* bylo #666 */
+  --danger:#c62828;         /* bylo #ff5252 — sjednoceno s verdiktem */
+
+  /* --- značka --- */
+  --ink-900:#14191D;        /* navigace, hlavní text */
+  --orange-700:#C2461A;     /* akce, aktivní stav */
+  --orange-600:#E4571F;     /* logo, důrazný akcent */
+  --orange-500:#F0813F;     /* stav na tmavém podkladu */
+  --orange-050:#FDEDE6;     /* podklad odznáčku */
+
+  /* --- neutrály --- */
+  --ink-800:#2A343B; --ink-700:#3E4A52; --ink-600:#4E5A63; --ink-500:#6C7981;
+  --ink-400:#8B979F; --ink-300:#A9B4BB; --ink-200:#CFD7DC;
+  --line-200:#E2E6E9; --line-100:#EAEDEF;
+  --surface-200:#F0F3F4; --surface-100:#F1F3F4; --surface-000:#FFFFFF;
+
+  /* --- verdikt a stavy: PŘEVZATÉ z appky, nepřebarvovat --- */
+  --ok-700:#1e7d34;   --ok-050:#e6f4ea;
+  --bad-700:#c62828;  --bad-050:#fde8e8;
+  --wait-700:#8a6d00; --wait-050:#fff3cd;   /* .badge-unsynced */
+  --warn-700:#A8650B; --warn-500:#D69220; --warn-050:#FBF0DC;  /* pásmo 8–10 mm */
+
+  /* --- semantické aliasy (používej tyto) --- */
+  --text-strong:var(--ink-900); --text-body:var(--ink-700);
+  --text-muted:var(--ink-400);  --text-faint:var(--ink-300);
+  --text-on-dark:#FFFFFF;       --text-on-dark-muted:#8D99A2;
+  --surface-app:var(--surface-100); --surface-card:var(--surface-000);
+  --surface-sunken:var(--surface-200); --surface-nav:var(--ink-900);
+  --border-card:var(--line-200); --border-divider:var(--line-100);
+  --border-focus:var(--orange-700);
+  --action-primary:var(--orange-700); --action-primary-text:#FFFFFF;
+  --action-danger:var(--bad-700);
+  --state-ok-text:var(--ok-700);     --state-ok-bg:var(--ok-050);
+  --state-bad-text:var(--bad-700);   --state-bad-bg:var(--bad-050);
+  --state-wait-text:var(--wait-700); --state-wait-bg:var(--wait-050);
+  --state-warn-text:var(--warn-700); --state-warn-bg:var(--warn-050);
+
+  /* --- typografie: bez webfontu, appka běží offline --- */
+  --font-ui:system-ui,-apple-system,"Segoe UI",Roboto,Arial,sans-serif;
+  --font-num:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+  --fs-caps:9px; --fs-micro:10px; --fs-tag:10.5px; --fs-meta:11px; --fs-meta-lg:11.5px;
+  --fs-body-sm:12px; --fs-body:12.5px; --fs-body-lg:13px; --fs-num:15px;
+  --fs-title:16px; --fs-title-lg:17px;
+  --fw-regular:400; --fw-medium:450; --fw-strong:500; --fw-bold:600; --fw-heavy:700;
+  --lh-tight:1; --lh-snug:1.3; --lh-body:1.55;
+  --ls-caps:.11em; --ls-brand:.16em;
+
+  /* --- mezery: hodnoty z appky, nezaokrouhlovat --- */
+  --sp-2:4px; --sp-3:6px; --sp-4:7px; --sp-5:8px; --sp-6:9px; --sp-7:10px;
+  --sp-8:11px; --sp-9:12px; --sp-10:13px; --sp-11:14px; --sp-12:16px;
+  --sp-13:18px; --sp-14:20px; --sp-16:26px;
+  --pad-card:9px 12px; --pad-panel:13px 16px; --pad-view:14px 18px;
+  --gap-list:8px; --gap-row:10px; --gap-stack:12px;
+  --w-list:292px; --w-side:284px; --h-nav:46px; --hit-min:44px;
+
+  /* --- tvary: rámeček místo stínu --- */
+  --r-1:3px; --r-2:4px; --r-3:5px; --r-4:6px; --r-5:8px; --r-6:10px; --r-7:12px; --r-pill:999px;
+  --border-hair:1px solid var(--line-200);
+  --border-divider-hair:1px solid var(--line-100);
+  --border-dashed:2px dashed var(--ink-200);
+  --shadow-overlay:0 8px 24px rgba(0,0,0,.18);
+  --shadow-modal:0 12px 40px rgba(0,0,0,.30);
+  --dur-fast:120ms; --dur-base:200ms; --dur-drawer:250ms;
+
+  /* --- zobrazení měření rovinatosti (jediná pravda) --- */
+  --mm-limit:10;            /* mez v mm, 2 m lať */
+  --mm-ceiling:20;          /* strop stupnice = rozsah klínku */
+  --mm-share-required:75;   /* % hodnot ≤ mez pro „vyhovující" */
+  --viz-neutral:#8FA6B2; --viz-neutral-soft:#B5C2C9; --viz-zero:var(--ink-200);
+  --viz-attention:var(--warn-500); --viz-over:var(--bad-700); --viz-track:var(--surface-200);
+  --viz-limit-line:#D3B0AA; --viz-limit-label:#B0736A;
+  --viz-bar-h:8px; --viz-spark-h:22px; --viz-spark-w:3px; --viz-spark-gap:2px; --viz-value-w:40px;
+}
+
+/* ============================================================================
+   Modré hexy zapsané v CSS natvrdo — přepiš je v tomto pořadí (find & replace
+   v celém index.html). Bez toho zůstane appka místy modrá.
+
+     #dbe7f7  →  var(--line-200)      rámečky .measure-group, .info-btn, .info-box
+     #cdddf3  →  var(--ink-200)       hover rámečky, .chip
+     #f4f8fe  →  var(--surface-200)   podklad .measure-group, .zn-thumb
+     #e7eef9  →  var(--surface-200)   .chip-x
+     #d4e0f2  →  var(--ink-200)       .chip-x:hover
+     #33506f  →  var(--ink-600)       text .chip-x
+     #e6eef9  →  var(--line-200)      rámeček náhledu
+     #f7f9fa  →  var(--surface-200)   vybraný řádek
+     #fbfdff  →  var(--surface-000)   hover řádku
+     #fdecec  →  var(--bad-050)       .add-x, .chip-over
+     #f3b9b9  →  var(--bad-050)       rámeček .chip-over
+     #b23b3b  →  var(--state-bad-text)text .chip-over
+     #e0e0e0  →  var(--line-200)      rámečky vstupů
+     #f5f7fa  →  var(--surface-app)   body
+     #eee     →  var(--line-100)      oddělovače .form-section
+
+   Zůstat musí (verdikty a stavy): #1e7d34, #e6f4ea, #c62828, #fde8e8,
+   #8a6d00, #fff3cd.
+   ========================================================================= */

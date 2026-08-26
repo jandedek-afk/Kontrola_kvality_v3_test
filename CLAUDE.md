@@ -12,7 +12,7 @@
 - V panelu je tlačítko **⟳ Aktualizovat aplikaci** = tvrdý update (smaže cache + odregistruje SW + cache-busting reload). Zežloutne, když je stažená nová verze.
 
 ## Projekt
-- **Kontrola kvality – Foto poznámky (v3)** — PWA pro kontrolu kvality oprav vozovky, se sdílením mezi tabletem (provoz) a počítačem (zpracování). Dvě fáze: **Kontrolní výjezd** (na silnici: fotka, podélné/příčné měření rovinatosti, vyjetá kolej, poznámka, GPS, datum) a **Office** (v kanceláři: doplnění posouzení kvality = náhrada MS Forms + import PDF „Záznam o opravě").
+- **Kontrola kvality (v3)** — PWA pro kontrolu kvality oprav vozovky, se sdílením mezi tabletem (provoz) a počítačem (zpracování). Dvě fáze: **Kontrolní výjezd** (na silnici: fotka, podélné/příčné měření rovinatosti, vyjetá kolej, poznámka, GPS, datum) a **Office** (v kanceláři: doplnění posouzení kvality = náhrada MS Forms + import PDF „Záznam o opravě").
 - **Rozhraní:** levý postranní panel s kartami — 🚛 Kontrolní výjezd, 🏢 Office, 📁 Záznamy, 🗺️ Mapa, ⚙️ Nastavení; dole synchronizace, e-mail, odhlášení. Tlačítko Zpět (mobil/prohlížeč) je napojené na History API (popstate) — vrací o krok v appce, nevyskakuje ven.
 - **Tech stack:** čisté HTML/CSS/JS bez frameworku a bez build kroku; vše v jednom `index.html`. Knihovny z CDN: Leaflet 1.9.4 (mapa), `@supabase/supabase-js@2` (přihlášení + cloud), **pdf.js 3.11.174 (cdnjs)** pro čtení PDF v Office. Lokální úložiště: IndexedDB. PWA (service worker + manifest).
 - **Cloud:** Supabase (Postgres + Auth), projekt ref `wkqqjladzvelnvwcstok`.
@@ -63,7 +63,8 @@
 - Bez potvrzení nemazat data, neměnit DB schéma ani RLS pravidla.
 - Registrace je otevřená; potvrzování e-mailu je v Supabase pro test vypnuté.
 
-## Aktuální stav (v3.2.0-test, Build ·6)
+## Aktuální stav (v3.2.0-test, Build 44)
+- **Název appky = jen „Kontrola kvality"** (bez „Foto poznámky") — title, manifest `name`/`short_name`, apple-title, patička (Build 43).
 - **Hotovo (základ):** komprese fotek, přihlášení (otevřená registrace), offline-first ukládání, **funkční obousměrná synchronizace (ověřeno na PC i Androidu)**, mapa, složky, service worker „nejdřív síť", fotka v DB.
 - **Rozhraní:** postranní panel je **rozbalovací drawer na všech šířkách** (i na PC), ovládaný **fixním hamburgerem** (☰) vlevo nahoře; obsah je centrovaný (max 1200 px), footer přilepený dole (flex column). Karty: výjezd / office / záznamy / mapa / nastavení. Tlačítko Zpět přes History API (zavře detail → office formulář → přepne kartu). Ověřeno, že se seznam v Office na mobilu nesekává.
 - **Kontrolní výjezd:**
@@ -72,7 +73,7 @@
   - **Rovinatost:** rychlé zadávání (mezera/středník/Enter/blur), auto verdikt.
   - **Vyjetá kolej** (ano/ne), poznámka. Složka automaticky podle data (RRRR_MM_DD).
   - **Uložení:** neblokující GPS, pojistka proti dvojkliku (zamčené tlačítko „Ukládám…").
-- **Office část (náhrada MS Forms):** výběr záznamu → **import PDF „Záznam o opravě"** (pdf.js, **dvousloupcové čtení** podle X, chybějící ID → `N/A`; PDF se uloží jako dokumentace do `office.repairPdf`) → identifikace + foto po opravě + **auto-doplnění reklamace** z „Typ záruka" (ANO→poskytnuta, NE/Bez záruky→neposkytnuta) → ~30 posuzovacích polí (Troxler/Vývrt podmíněně, auto verdikt rovinatosti). Fotky **po opravě (vlevo) / při kontrole (vpravo)** vedle sebe, klik = fullscreen. **Plovoucí přesouvatelné okno** s fotkou (přepínač po opravě/při kontrole, primárně při kontrole; klik = fullscreen; znovuotevření tlačítkem). Stav office (✓/⏳) v Záznamech i detailu.
+- **Office část (náhrada MS Forms):** výběr záznamu → **nahoře „📍 Poloha opravy": souřadnice + mini Leaflet mapa s markerem + odkaz na Google Maps** (`initOfficeMap`, instance v `officeMapInstance`, `invalidateSize` po vykreslení) kvůli identifikaci opravy a dohledání správného PDF (Build 44) → **import PDF „Záznam o opravě"** (pdf.js, **dvousloupcové čtení** podle X, chybějící ID → `N/A`; PDF se uloží jako dokumentace do `office.repairPdf`) → identifikace + foto po opravě + **auto-doplnění reklamace** z „Typ záruka" (ANO→poskytnuta, NE/Bez záruky→neposkytnuta) → ~30 posuzovacích polí (Troxler/Vývrt podmíněně, auto verdikt rovinatosti). Fotky **po opravě (vlevo) / při kontrole (vpravo)** vedle sebe, klik = fullscreen. **Plovoucí přesouvatelné okno** s fotkou (přepínač po opravě/při kontrole, primárně při kontrole; klik = fullscreen; znovuotevření tlačítkem). Stav office (✓/⏳) v Záznamech i detailu.
 - **Office data SE SYNCHRONIZUJÍ do cloudu** (migrace sloupců `office/after_photo/vyjeta_kolej/inspectors/office_done` **byla spuštěna** v Supabase). `pushEntry` má pojistku pro starou DB (uloží aspoň základní pole).
 - **Nastavení:** správa „Kontrolujících osob" (rozklikávací pole).
 - **Next steps:**
