@@ -35,6 +35,13 @@
 - **HTML id:** kebab-case (`login-overlay`, `sync-status`).
 - **Komentáře:** krátké řádkové `//` česky.
 
+## Vzhled (design tokeny) — platí od Build 45
+- **Zdroj pravdy je `Design/patch/kk-tokens.css`**; obsah jeho `:root` bloku je vložený v `index.html` (~ř. 21). Zadání celého redesignu je `Design/patch/zadani-pro-ai-vscode.md`.
+- **Nepiš barvy natvrdo** — používej tokeny: `--ink-*`, `--line-*`, `--surface-*`, `--orange-*`, `--ok-*/--bad-*/--warn-*/--wait-*`, `--fs-*`, `--sp-*`, `--r-*`, `--viz-*`. Legacy `--brand` / `--muted` / `--danger` zůstávají jako aliasy (brand = oranžová FUTTEC `#C2461A`).
+- Karty v obsahu: **1px rámeček + radius 8 px, žádný stín** (stín jen u overlayů — menu, dialog, drawer, plovoucí foto).
+- Čísla (čas, mm, GPS, ID CEV) v `var(--font-num)`; popisky sekcí 9–10 px verzálkami s `letter-spacing:var(--ls-caps)`.
+- **Zobrazení rovinatosti má jednu pravdu:** mez 10 mm, strop stupnice 20 mm, vyhovující = ≥ 75 % hodnot ≤ 10 mm (JS konstanty `MM_LIMIT`, `MM_CEIL`, `MM_SHARE`). Pruh: 10 mm = 50 % šířky. Barvy: > 10 mm nebo `x` červená, 8–10 mm oranžová, jinak `--viz-neutral`.
+
 ## Příkazy
 - **Lokální vývoj:** `python -m http.server 8000 --bind 127.0.0.1` ve složce → `http://localhost:8000` (localhost = bezpečný kontext, funguje SW/kamera/GPS). Node na tomto stroji není.
 - **Nasazení:** `git commit` + `git push` → GitHub Pages → `https://jandedek-afk.github.io/Kontrola_kvality_v3_test/` (naživo do ~1 min).
@@ -63,24 +70,25 @@
 - Bez potvrzení nemazat data, neměnit DB schéma ani RLS pravidla.
 - Registrace je otevřená; potvrzování e-mailu je v Supabase pro test vypnuté.
 
-## Aktuální stav (v3.2.0-test, Build 44)
+## Aktuální stav (v3.2.0-test, Build 49)
 - **Název appky = jen „Kontrola kvality"** (bez „Foto poznámky") — title, manifest `name`/`short_name`, apple-title, patička (Build 43).
 - **Hotovo (základ):** komprese fotek, přihlášení (otevřená registrace), offline-first ukládání, **funkční obousměrná synchronizace (ověřeno na PC i Androidu)**, mapa, složky, service worker „nejdřív síť", fotka v DB.
-- **Rozhraní:** postranní panel je **rozbalovací drawer na všech šířkách** (i na PC), ovládaný **fixním hamburgerem** (☰) vlevo nahoře; obsah je centrovaný (max 1200 px), footer přilepený dole (flex column). Karty: výjezd / office / záznamy / mapa / nastavení. Tlačítko Zpět přes History API (zavře detail → office formulář → přepne kartu). Ověřeno, že se seznam v Office na mobilu nesekává.
+- **Navigace (Build 47):** na **≥1000 px trvalá tmavá vodorovná lišta** `.topnav` (`#14191D`) — 5 karet, vpravo stav synchronizace, ⟳ Aktualizovat a e-mail; plovoucí ☰ je tam skrytý. Na **≤640 px spodní lišta karet** `.botnav` (aktivní oranžově, ≥44 px, `safe-area`). Drawer `.sidebar` s ☰ zůstává pro tablety a jako fallback (nese Synchronizovat / Odhlásit). Stav synchronizace, tlačítko aktualizace a e-mail jsou na dvou místech → adresují se **třídou** (`.sync-state`, `.update-btn`, `.user-email`), ne `id`. Karty přepíná jakýkoli `.nav-item[data-view]`. Tlačítko Zpět přes History API (fullscreen fotka → detail → office formulář → přepne kartu).
+- **Záznamy (Build 42, 46):** seznam jsou **karty** (`buildEntriesList`/`buildEntryCard`) — barevný pruh podle verdiktu, náhled, čas, jména, stav office, mini graf hodnot, max. odchylka. `buildEntriesTable` zůstává jako druhý režim (nabídka „Sloupce ▾"). Na **≥1200 px tři panely** `.zn-panes` (seznam 292 px | detail | pravý panel 284 px), pod tím se detail otevírá v `#viewer` na celou obrazovku. Detail vykresluje **jedna sada funkcí pro obě místa**: `buildEntryDetailHtml` (hlavička s verdiktem a max. odchylkou, pruhy měření, fotky, pásek polí), `buildEntrySideHtml(entry, withMap)` (mapa s body podle verdiktu + úprava GPS tažením, GPS, dokumenty), `buildEntryBarHtml` (přilepená lišta na mobilu), akce přes `wireEntryDetail`. Fullscreen fotka je `#img-full`. Mazání **jen v nabídce ⋯**, nikdy jako velké tlačítko.
 - **Kontrolní výjezd:**
   - „**Kontrolu provádí**" = sbalený výběr jmen (chipy + „+", zdroj osob = Nastavení / localStorage `kk_persons`).
   - „**Foto opravy**" = jedno tlačítko rovnou kamera (`capture`), info „i" (foto z odstupu, okolí min. 2 m).
-  - **Rovinatost:** rychlé zadávání (mezera/středník/Enter/blur), auto verdikt.
+  - **Rovinatost:** rychlé zadávání (mezera/středník/Enter/blur), **živý verdikt** pod sekcí (pilulka + „X z Y do 10 mm · Z % · mez 75 %") přepočítaný při každé změně; `✕ >20` ukládá `x` (chip „✕ > 20 mm").
   - **Vyjetá kolej** (ano/ne), poznámka. Složka automaticky podle data (RRRR_MM_DD).
-  - **Uložení:** neblokující GPS, pojistka proti dvojkliku (zamčené tlačítko „Ukládám…").
-- **Office část (náhrada MS Forms):** výběr záznamu → **nahoře „📍 Poloha opravy": souřadnice + mini Leaflet mapa s markerem + odkaz na Google Maps** (`initOfficeMap`, instance v `officeMapInstance`, `invalidateSize` po vykreslení) kvůli identifikaci opravy a dohledání správného PDF (Build 44) → **import PDF „Záznam o opravě"** (pdf.js, **dvousloupcové čtení** podle X, chybějící ID → `N/A`; PDF se uloží jako dokumentace do `office.repairPdf`) → identifikace + foto po opravě + **auto-doplnění reklamace** z „Typ záruka" (ANO→poskytnuta, NE/Bez záruky→neposkytnuta) → ~30 posuzovacích polí (Troxler/Vývrt podmíněně, auto verdikt rovinatosti). Fotky **po opravě (vlevo) / při kontrole (vpravo)** vedle sebe, klik = fullscreen. **Plovoucí přesouvatelné okno** s fotkou (přepínač po opravě/při kontrole, primárně při kontrole; klik = fullscreen; znovuotevření tlačítkem). Stav office (✓/⏳) v Záznamech i detailu.
+  - **Uložení:** neblokující GPS, pojistka proti dvojkliku (zamčené tlačítko „Ukládám…"); na mobilu je „Uložit záznam" **přilepená lišta dole** nad spodní navigací.
+- **Office část (náhrada MS Forms):** výběr záznamu → **nahoře „📍 Poloha opravy": souřadnice + mini Leaflet mapa s markerem + odkaz na Google Maps** (`initOfficeMap`, instance v `officeMapInstance`, `invalidateSize` po vykreslení) kvůli identifikaci opravy a dohledání správného PDF (Build 44) → **import PDF „Záznam o opravě"** (pdf.js, **dvousloupcové čtení** podle X, chybějící ID → `N/A`; PDF se uloží jako dokumentace do `office.repairPdf`) → identifikace + foto po opravě + **auto-doplnění reklamace** z „Typ záruka" (ANO→poskytnuta, NE/Bez záruky→neposkytnuta) → ~30 posuzovacích polí (Troxler/Vývrt podmíněně, auto verdikt rovinatosti). Fotky **po opravě (vlevo) / při kontrole (vpravo)** vedle sebe, klik = fullscreen. **Plovoucí přesouvatelné okno** s fotkou (přepínač po opravě/při kontrole, primárně při kontrole; klik = fullscreen; znovuotevření tlačítkem). Stav office (✓/⏳) v Záznamech i detailu. **Rozvržení (Build 48–49):** výběr záznamu i seznam čekajících používá **stejné karty jako Záznamy**; ve formuláři jsou na ≥1200 px **tři kolonky** `.of-panes` (čekající záznamy | formulář | 300 px měření z výjezdu a fotky), pod 1200 px pod sebou s měřením nad formulářem. V hlavičce formuláře je průběh **„vyplněno X z Y polí"** (`officeProgressCounts` počítá z `OFFICE_SCHEMA`, podmíněná pole jen když se týkají). Vybraná možnost přepínače má oranžový rámeček.
 - **Office data SE SYNCHRONIZUJÍ do cloudu** (migrace sloupců `office/after_photo/vyjeta_kolej/inspectors/office_done` **byla spuštěna** v Supabase). `pushEntry` má pojistku pro starou DB (uloží aspoň základní pole).
 - **Nastavení:** správa „Kontrolujících osob" (rozklikávací pole).
 - **Next steps:**
   - **úklid cloudu** (mazat synchronizované řádky → udržet free tier) — stále nehotové, **priorita**; viz „Plánované práce" níže;
   - **SQL migrace odvozených sloupců + indexů** (server-side filtr/report) — odloženo, viz „Plánované práce" níže;
-  - generování **PDF protokolu** z kompletního záznamu (vzor: list `Protokol_VZOR` ve stávajícím xlsm) — odloženo;
   - založit produkční Supabase projekt + zapnout potvrzování e-mailu; povýšit v3 do ostrého provozu.
+  - **redesign podle `Design/patch/` je hotový** (tokeny, karty, detail, navigace, výjezd, office); kapitola 6 zadání (`x` ve verdiktu) byla hotová už z Buildu 13.
 
 ## Plánované práce (do budoucna – NENÍ hotové)
 Poznámky z domluvy s uživatelem (2026-07-15), ať se na to nezapomene:
