@@ -922,7 +922,7 @@
 
           <footer>
             Aplikace funguje offline. Data jsou uložena lokálně v zařízení (IndexedDB).<br>
-            <span style="color:var(--muted);font-size:0.95em;">Verze aplikace: v3.2.0-test · Build 2026-08-26·48</span>
+            <span style="color:var(--muted);font-size:0.95em;">Verze aplikace: v3.2.0-test · Build 2026-08-26·49</span>
           </footer>
         </main>
         <!-- Spodní lišta karet: mobil ≤640 px (drawer zůstává pro tablety a jako fallback) -->
@@ -1514,26 +1514,22 @@
         const entries = await getAllEntries();
         // v Office ukazuj jen záznamy BEZ hotové office části; hotové se řeší/upravují v Záznamech
         const pending = entries.filter(e=> !e.officeDone);
-        const rows = pending.map(e=>{
-          const oprava = (e.office && e.office.oprava) || (e.repairInfo && e.repairInfo.oprava) || '';
-          const sub = [e.folder||'', oprava].filter(Boolean).join(' · ') || 'bez identifikace';
-          return `<div class="office-row" data-id="${escAttr(e.id)}">
-            <img src="${e.photo||''}" alt="foto" onerror="this.style.visibility='hidden'">
-            <div class="r-main"><div class="t">${escapeHtml(e.timeText||'')}</div><div class="s">${escapeHtml(sub)}</div></div>
-            <span class="status-pill wait">⏳ čeká</span>
-          </div>`;
-        }).join('');
         const empty = entries.length
-          ? '<div class="view-sub">Hotovo – všechny záznamy mají doplněnou office část. Úpravy najdeš v kartě 📁 Záznamy (detail → „Upravit office část").</div>'
+          ? '<div class="view-sub">Hotovo – všechny záznamy mají doplněnou office část. Úpravy najdeš v kartě 📁 Záznamy (detail → „Doplnit v Office").</div>'
           : '<div class="view-sub">Zatím žádné záznamy. Nejdřív pořiď záznam v kartě Kontrolní výjezd.</div>';
         body.innerHTML = `
           <div class="office-picker">
-            <strong>Vyber záznam k doplnění kontroly</strong>
-            <div class="view-sub" style="margin:6px 0 0">Klepni na záznam z výjezdu a doplň office údaje. Po uložení záznam z tohoto seznamu zmizí – dál se upravuje v Záznamech.</div>
-            <div class="office-list">${rows || empty}</div>
+            <strong>Vyber záznam k doplnění kontroly (${pending.length})</strong>
+            <div class="view-sub" style="margin:6px 0 10px">Klepni na záznam z výjezdu a doplň office údaje. Po uložení záznam z tohoto seznamu zmizí – dál se upravuje v Záznamech.</div>
+            ${buildEntriesList(pending, false) || empty}
           </div>`;
-        body.querySelectorAll('.office-row').forEach(r=>{
-          r.addEventListener('click', ()=>{ openOfficeForm(r.dataset.id); });
+        // stejné karty jako v Záznamech: data-act="view" otevře office formulář, ⋯ nabídku akcí
+        // (listener na .office-picker, ne na #office-body — ten se nepřekresluje a listenery by se sčítaly)
+        body.querySelector('.office-picker').addEventListener('click', async (ev)=>{
+          const act = ev.target.closest('[data-act]'); if(!act) return;
+          const card = ev.target.closest('[data-id]'); if(!card) return;
+          if(act.dataset.act === 'view') openOfficeForm(card.dataset.id);
+          else if(act.dataset.act === 'menu'){ ev.stopPropagation(); const e2 = await getEntryById(card.dataset.id); openActionSheet(e2 || { id: card.dataset.id }, null); }
         });
       }
 
