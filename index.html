@@ -18,14 +18,7 @@
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
   <style>
-    :root{--brand:#1976d2;--muted:#666;--danger:#ff5252}
-       (~ř. 21). Nic jiného v CSS zatím neměň — appka funguje dál, jen se překreslí
-       barvy, protože zbytek pravidel čte var(--brand) / var(--muted) / var(--danger).
-
-       Zdroj: design systém projektu (tokens/colors.css, typography.css, spacing.css,
-       shape.css, dataviz.css). Tady jsou sloučené do jednoho :root, aby se dal
-       vložit do souboru bez build kroku.
-       ========================================================================= */
+    /* Tokeny vzhledu — zdroj: Design/patch/kk-tokens.css (legacy jména --brand/--muted/--danger zůstávají) */
     :root{
       /* --- legacy proměnné appky: JEN přemapované, jména zůstávají --- */
       --brand:#C2461A;          /* bylo #1976d2 — oranžová FUTTEC */
@@ -146,7 +139,7 @@
     .btn-secondary{background:var(--surface-200);color:var(--ink-800)}
     .btn-danger{background:var(--danger)}
     #status{margin-left:8px;color:var(--muted);font-size:0.9rem}
-    .entries{margin-top:0.4rem;display:grid;gap:1rem}
+    .entries{margin-top:0.4rem;display:grid;gap:1rem;grid-template-columns:minmax(0,1fr)}
     .entry{background:var(--surface-card);padding:0.55rem 0.8rem;border-radius:var(--r-5);border:var(--border-hair);display:grid;gap:0.4rem;transition:border-color var(--dur-base)}
     .entry:hover{border-color:var(--ink-200)}
     .entry-content{display:grid;grid-template-columns:150px 1fr;gap:0.9rem;align-items:center}
@@ -418,7 +411,7 @@
     .person-row .del{background:#fde8e8;color:#c62828;border:none;border-radius:6px;padding:5px 10px;cursor:pointer;font-size:0.82rem;font-weight:600}
     .person-row .del:hover{background:var(--bad-050)}
     /* === Záznamy: seznam karet === */
-    .zn-list{display:grid;gap:8px}
+    .zn-list{display:grid;gap:var(--gap-list);grid-template-columns:minmax(0,1fr)}
     .zn-card{display:flex;align-items:center;gap:10px;background:var(--surface-card);border:var(--border-hair);
       border-left:3px solid var(--ink-200);border-radius:var(--r-5);padding:var(--pad-card)}
     .zn-card.ok{border-left-color:#1e7d34}
@@ -456,6 +449,159 @@
       .zn-spark{display:none}
       .zn-thumb{width:56px;height:56px}
       .zn-card{padding:11px 12px}
+    }
+    /* === Záznamy: tři panely (web ≥ 1200 px) === */
+    .zn-panes{display:block}
+    .zn-pane-detail,.zn-pane-side{display:none}
+    @media (min-width:1200px){
+      .zn-panes{display:grid;grid-template-columns:var(--w-list) minmax(0,1fr) var(--w-side);gap:var(--sp-9);align-items:start}
+      .zn-pane-list{max-height:calc(100vh - 40px);overflow-y:auto;padding-right:2px}
+      .zn-pane-detail,.zn-pane-side{display:block;position:sticky;top:0;max-height:calc(100vh - 40px);overflow-y:auto}
+      /* v úzkém sloupci se mini graf nevejde — stav nese levý pruh a max. odchylka */
+      .zn-pane-list .zn-spark{display:none}
+      /* 292 px je úzkých — všechny prvky karty se zmenší, ať se vejde i max. odchylka a ⋯ */
+      .zn-pane-list .zn-card{gap:var(--sp-3);padding:var(--sp-5)}
+      .zn-pane-list .zn-thumb{width:40px;height:32px}
+      .zn-pane-list .zn-max{width:34px;font-size:0.72rem}
+      .zn-pane-list .zn-time{font-size:0.8rem}
+      .zn-pane-list .zn-who{font-size:0.72rem}
+      .zn-pane-list .zn-line2{font-size:0.7rem}
+      .zn-pane-list .zn-tag{width:9px;height:9px;padding:0;border-radius:50%;overflow:hidden;
+        text-indent:-99px;align-self:center}
+      .zn-pane-list .zn-tag.office-wait{background:var(--orange-700)}
+      .zn-pane-list .zn-tag.office-done{background:var(--ok-700)}
+      .zn-pane-list .zn-card .entry-pick{transform:none}
+      .zn-pane-list .entry-menu-btn{width:26px;height:26px;font-size:1rem}
+      .zn-pane-list .folders{grid-template-columns:1fr}
+      .zn-pane-list h2{font-size:1rem;margin:0 0 8px}
+    }
+    /* === Detail záznamu (společné pro panel i #viewer) === */
+    .ed{background:var(--surface-card);border:var(--border-hair);border-radius:var(--r-4);overflow:hidden}
+    .ed-empty{background:var(--surface-card);border:var(--border-dashed);border-radius:var(--r-4);
+      padding:var(--sp-16) var(--sp-12);text-align:center;color:var(--text-faint);font-size:var(--fs-body-lg)}
+    .ed-head{padding:var(--pad-panel);border-bottom:var(--border-hair);background:var(--surface-card)}
+    .ed-h1{display:flex;align-items:center;gap:var(--sp-5);flex-wrap:wrap}
+    .ed-time{font-family:var(--font-num);font-size:var(--fs-title);font-weight:var(--fw-bold);color:var(--text-strong)}
+    .ed-folder{font-family:var(--font-num);font-size:var(--fs-tag);color:var(--ink-500);
+      background:var(--surface-sunken);border-radius:var(--r-1);padding:2px 6px;white-space:nowrap}
+    .ed-sub{font-size:var(--fs-meta-lg);color:var(--text-muted);margin-top:3px;overflow-wrap:anywhere}
+    .ed-acts{margin-left:auto;display:flex;gap:var(--sp-3);align-items:center;flex:0 0 auto}
+    .ed-acts .btn-primary{background:var(--action-primary);color:var(--action-primary-text);border:none;
+      border-radius:var(--r-3);padding:8px 13px;font-size:var(--fs-body-lg);font-weight:var(--fw-bold);cursor:pointer}
+    .ed-acts .btn-primary:hover{opacity:.92}
+    .ed-acts .ed-more{background:var(--surface-sunken);border:var(--border-hair);border-radius:var(--r-3);
+      width:34px;height:34px;font-size:1.1rem;line-height:1;color:var(--ink-600);cursor:pointer;padding:0}
+    .ed-nums{display:flex;align-items:flex-start;gap:var(--sp-13);flex-wrap:wrap;margin-top:var(--sp-8)}
+    .ed-pill{font-size:var(--fs-body-sm);font-weight:var(--fw-bold);border-radius:var(--r-pill);
+      padding:4px 13px;white-space:nowrap;align-self:center}
+    .ed-pill.ok{background:var(--state-ok-bg);color:var(--state-ok-text)}
+    .ed-pill.bad{background:var(--state-bad-bg);color:var(--state-bad-text)}
+    .ed-pill.none{background:var(--surface-sunken);color:var(--text-muted)}
+    .ed-num{min-width:0}
+    .ed-num .k{display:block;font-size:var(--fs-caps);letter-spacing:var(--ls-caps);text-transform:uppercase;
+      color:var(--text-muted);margin-bottom:2px}
+    .ed-num .v{font-family:var(--font-num);font-size:var(--fs-num);font-weight:var(--fw-bold);color:var(--text-body)}
+    .ed-num .v.warn{color:var(--warn-700)}
+    .ed-num .v.bad{color:var(--bad-700)}
+    .ed-num .n{font-size:var(--fs-meta);color:var(--text-faint);margin-left:5px}
+    .ed-body{display:flex;gap:var(--sp-12);padding:var(--pad-panel)}
+    .ed-photos{width:206px;flex:0 0 auto;display:flex;flex-direction:column;gap:var(--sp-5)}
+    .ed-photo{position:relative;border-radius:var(--r-4);overflow:hidden;border:var(--border-hair);
+      background:var(--surface-sunken);cursor:zoom-in}
+    .ed-photo img{display:block;width:100%;height:148px;object-fit:cover}
+    .ed-photo .cap{position:absolute;left:0;bottom:0;background:rgba(20,25,29,.72);color:#fff;
+      font-size:var(--fs-micro);padding:2px 8px;border-radius:0 var(--r-2) 0 0}
+    .ed-photo.empty{border:var(--border-dashed);background:transparent;cursor:default;min-height:92px;
+      display:flex;align-items:center;justify-content:center;text-align:center;padding:10px;
+      font-size:var(--fs-meta);color:var(--text-faint);line-height:var(--lh-snug)}
+    .ed-meas{flex:1 1 0;min-width:0}
+    /* karta měření: 1 hodnota = pruh, mez 10 mm = 50 % šířky, strop 20 mm */
+    .mc{background:var(--surface-card);border:var(--border-hair);border-radius:var(--r-4);padding:var(--pad-panel)}
+    .mc-head{display:flex;align-items:baseline;gap:var(--sp-5);margin-bottom:var(--sp-3)}
+    .mc-head .t{font-size:var(--fs-body-lg);font-weight:var(--fw-bold);color:var(--text-strong)}
+    .mc-head .s{font-size:var(--fs-meta);color:var(--text-muted)}
+    .mc-head .l{margin-left:auto;font-size:var(--fs-meta);color:var(--viz-limit-label);white-space:nowrap}
+    .mc-row{display:flex;align-items:center;gap:var(--sp-5);margin-top:5px}
+    .mc-track{position:relative;flex:1 1 0;min-width:0;height:var(--viz-bar-h);
+      background:var(--viz-track);border-radius:var(--r-1);overflow:hidden}
+    .mc-track::after{content:"";position:absolute;left:50%;top:0;bottom:0;width:1px;
+      background:var(--viz-limit-line);z-index:2}
+    .mc-fill{position:absolute;left:0;top:0;bottom:0;border-radius:var(--r-1);background:var(--viz-neutral);z-index:1}
+    .mc-fill.warn{background:var(--viz-attention)}
+    .mc-fill.bad{background:var(--viz-over)}
+    .mc-fill.zero{background:var(--viz-zero)}
+    .mc-val{font-family:var(--font-num);font-size:11px;width:var(--viz-value-w);text-align:right;
+      flex:0 0 auto;color:var(--text-body)}
+    .mc-val.warn{color:var(--warn-700)}
+    .mc-val.bad{color:var(--bad-700);font-weight:var(--fw-bold)}
+    .mc-sep{height:1px;background:var(--border-divider);margin:var(--sp-9) 0}
+    .mc-empty{font-size:var(--fs-body-sm);color:var(--text-faint);padding:2px 0 4px}
+    /* pásek polí pod tělem detailu */
+    .ed-strip{display:flex;border-top:var(--border-hair);background:var(--surface-card)}
+    .ed-strip .f{flex:1 1 0;min-width:0;padding:10px 13px;border-left:var(--border-divider-hair)}
+    .ed-strip .f:first-child{border-left:none}
+    .ed-strip .k{display:block;font-size:var(--fs-caps);letter-spacing:var(--ls-caps);text-transform:uppercase;
+      color:var(--text-muted);margin-bottom:3px}
+    .ed-strip .v{font-size:var(--fs-body);color:var(--text-body);overflow-wrap:anywhere}
+    .ed-office{border-top:var(--border-hair);padding:var(--pad-panel);background:var(--surface-card)}
+    .ed-office .k{display:block;font-size:var(--fs-caps);letter-spacing:var(--ls-caps);text-transform:uppercase;
+      color:var(--text-muted);margin-bottom:6px}
+    .ed-office .row{display:flex;gap:8px;font-size:var(--fs-body);padding:3px 0;border-top:var(--border-divider-hair)}
+    .ed-office .row:first-of-type{border-top:none}
+    .ed-office .row b{flex:0 0 46%;font-weight:var(--fw-strong);color:var(--text-muted)}
+    /* === Pravý panel detailu === */
+    .es{display:flex;flex-direction:column;gap:var(--sp-5)}
+    .es-card{background:var(--surface-card);border:var(--border-hair);border-radius:var(--r-4);overflow:hidden}
+    .es-card .h{display:block;font-size:var(--fs-caps);letter-spacing:var(--ls-caps);text-transform:uppercase;
+      color:var(--text-muted);padding:10px 12px 6px}
+    .es-map{height:214px;width:100%}
+    .es-nomap{height:214px;display:flex;align-items:center;justify-content:center;
+      background:var(--surface-sunken);color:var(--text-faint);font-size:var(--fs-body-sm)}
+    .es-gps{display:flex;align-items:center;gap:8px;padding:0 12px 11px;flex-wrap:wrap}
+    .es-gps .c{font-family:var(--font-num);font-size:var(--fs-meta);color:var(--text-body)}
+    .es-gps .btn-small{margin-left:auto}
+    .es-doc{display:flex;align-items:center;gap:8px;padding:10px 12px;width:100%;text-align:left;
+      background:none;border:none;border-top:var(--border-divider-hair);font-size:var(--fs-body-sm);
+      font-family:inherit;color:var(--text-body);cursor:pointer}
+    .es-doc:hover{background:var(--surface-sunken);opacity:1}
+    .es-doc:disabled{color:var(--text-faint);cursor:default;background:none}
+    .es-doc .n{margin-left:auto;font-family:var(--font-num);font-size:var(--fs-micro);color:var(--text-faint)}
+    /* fullscreen fotka z detailu */
+    #img-full{position:fixed;inset:0;z-index:10000;background:rgba(20,25,29,.92);display:flex;
+      align-items:center;justify-content:center;padding:12px;cursor:zoom-out}
+    #img-full[hidden]{display:none}
+    #img-full img{max-width:100%;max-height:100%;object-fit:contain;border-radius:var(--r-3)}
+    /* === Detail na mobilu / úzkém webu: #viewer přes celou obrazovku === */
+    @media (max-width:1199px){
+      #viewer-content{max-width:none;width:100%;max-height:100vh;height:100vh;border-radius:0;
+        padding:0;display:flex;flex-direction:column;overflow:hidden}
+      #viewer-close{right:10px;top:10px;background:var(--surface-sunken);border-radius:var(--r-pill);
+        width:34px;height:34px;z-index:5}
+      #viewer-body{flex:1 1 auto;overflow-y:auto;-webkit-overflow-scrolling:touch}
+      #viewer .ed{border:none;border-radius:0}
+      #viewer .ed-head{padding-right:52px}
+      /* nejdřív měření, pak fotky — grafy musí být čitelné bez scrollování */
+      .ed-body{flex-direction:column}
+      .ed-meas{order:1}
+      .ed-photos{order:2;width:100%;flex-direction:row}
+      .ed-photos > *{flex:1 1 0;min-width:0}
+      .ed-photo img{height:126px}
+      .ed-bar{position:sticky;bottom:0;display:flex;align-items:center;gap:10px;padding:9px 12px;
+        padding-bottom:calc(9px + env(safe-area-inset-bottom));background:var(--surface-card);
+        border-top:var(--border-hair)}
+      .ed-bar .btn-primary{flex:1 1 auto;min-height:var(--hit-min);background:var(--action-primary);
+        color:var(--action-primary-text);border:none;border-radius:var(--r-3);font-size:var(--fs-body-lg);
+        font-weight:var(--fw-bold);cursor:pointer}
+      .ed-bar .st{font-size:var(--fs-meta);color:var(--text-muted);white-space:nowrap}
+      .es{padding:var(--sp-5);gap:var(--sp-5);background:var(--surface-app)}
+    }
+    @media (min-width:1200px){ .ed-bar{display:none} }
+    @media (max-width:1199px){ .ed-head .ed-acts .btn-primary{display:none} }
+    @media (max-width:640px){
+      .ed-strip{flex-wrap:wrap}
+      .ed-strip .f{flex:1 1 50%;border-top:var(--border-divider-hair)}
+      .ed-strip .f:nth-child(-n+2){border-top:none}
+      .ed-strip .f:nth-child(odd){border-left:none}
     }
   </style>
 </head>
@@ -613,9 +759,16 @@
               </span>
             </div>
 
-            <section class="folders" id="folders"></section>
-            <section class="entries" id="entries"></section>
-            <div id="load-more-wrap" style="text-align:center;margin-top:1rem" hidden><button id="load-more" type="button" class="btn-secondary">Načíst další</button></div>
+            <!-- Tři panely: seznam | detail | pravý panel (side-by-side jen na ≥1200 px) -->
+            <div class="zn-panes" id="zn-panes">
+              <div class="zn-pane-list">
+                <section class="folders" id="folders"></section>
+                <section class="entries" id="entries"></section>
+                <div id="load-more-wrap" style="text-align:center;margin-top:1rem" hidden><button id="load-more" type="button" class="btn-secondary">Načíst další</button></div>
+              </div>
+              <div class="zn-pane-detail" id="zn-detail"></div>
+              <div class="zn-pane-side" id="zn-side"></div>
+            </div>
           </section>
 
           <!-- OFFICE – DOPLNĚNÍ KONTROLY -->
@@ -651,10 +804,13 @@
 
           <footer>
             Aplikace funguje offline. Data jsou uložena lokálně v zařízení (IndexedDB).<br>
-            <span style="color:var(--muted);font-size:0.95em;">Verze aplikace: v3.2.0-test · Build 2026-08-26·45</span>
+            <span style="color:var(--muted);font-size:0.95em;">Verze aplikace: v3.2.0-test · Build 2026-08-26·46</span>
           </footer>
         </main>
       </div>
+
+      <!-- Fullscreen fotka z detailu záznamu -->
+      <div id="img-full" hidden><img src="" alt="foto"></div>
 
       <div id="viewer" aria-hidden="true">
         <div id="viewer-backdrop"></div>
@@ -1016,6 +1172,8 @@
       }
       // Zpět (mobilní/prohlížeč): nejdřív zavři modály, pak přepni kartu – nevyskakuj z appky
       function handlePop(e){
+        const imgFull = document.getElementById('img-full');
+        if(imgFull && !imgFull.hidden){ closeImageFull(); return; }
         const viewer = document.getElementById('viewer');
         if(viewer && viewer.getAttribute('aria-hidden') === 'false'){ if(viewerCloseFn) viewerCloseFn(); return; }
         if(officeCurrentId){ officeCurrentId = null; officePhotos = {}; renderOffice(); return; }
@@ -1949,8 +2107,8 @@
         // Na řádku je nejvýš jeden odznáček (office). Stav synchronizace je ⏳ před časem —
         // jinak dlouhé `inspectors` ("J. Novák, M. Dvořák") + dva odznáčky rozbijí úzký sloupec.
         const officeTag = e.officeDone
-          ? '<span class="zn-tag office-done">✓ office</span>'
-          : '<span class="zn-tag office-wait">⏳ office</span>';
+          ? '<span class="zn-tag office-done" title="office část hotová">✓ office</span>'
+          : '<span class="zn-tag office-wait" title="office část čeká">⏳ office</span>';
         const syncMark = e.synced ? '' : '<span class="zn-sync" title="neodesláno do cloudu">⏳</span>';
         let popis = idCev || (e.note||'').trim();
         if(!st) popis = 'bez měření rovinatosti';
@@ -1983,6 +2141,268 @@
         if(!entries.length) return '';
         return `<div class="zn-list">${entries.map(e=> buildEntryCard(e, withPick)).join('')}</div>`;
       }
+      // ===== Detail záznamu: jedno vykreslení pro panel (web ≥ 1200 px) i #viewer (mobil) =====
+      const MM_LIMIT = 10, MM_CEIL = 20, MM_SHARE = 75;   // mez / strop stupnice / požadovaný podíl v %
+      let detailId = null;              // záznam právě zobrazený v prostředním panelu
+      let znFolderShown = null;         // otevřená složka (pro nabídku ⋯ a mapu v pravém panelu)
+      let znSideMap = null, znSideMapView = null, znSideEditMarker = null;
+
+      function pluralHodnot(n){ return n===1 ? '1 hodnota' : (n>=2 && n<=4 ? n+' hodnoty' : n+' hodnot'); }
+      function fmtMm(v){ return String(Math.round(v*10)/10).replace('.', ','); }
+      function entryStav(st){ return !st ? 'none' : (!st.vyhovuje ? 'bad' : (st.max>=8 ? 'warn' : 'ok')); }
+      // hrubá velikost base64 fotky (pro řádek Dokumenty)
+      function photoSizeMb(dataURL){
+        if(!dataURL) return '';
+        const b = dataURL.length * 0.75;
+        return (b/1048576).toFixed(b < 1048576 ? 2 : 1) + ' MB';
+      }
+      // foto po opravě: z poslední nahrané opravy, jinak z entry.afterPhoto
+      function edAfterPhoto(entry){
+        const reps = (entry.office && Array.isArray(entry.office.repairs)) ? entry.office.repairs.filter(r=>r.afterPhoto) : [];
+        return reps.length ? reps[reps.length-1].afterPhoto : (entry.afterPhoto || '');
+      }
+      // Jedna hodnota = vodorovný pruh. Mez 10 mm = 50 % šířky, strop 20 mm, 'x' = plný pruh.
+      function measureRowsHtml(str){
+        const st = rovinatostStats(str, '');
+        if(!st) return '<div class="mc-empty">nezměřeno</div>';
+        return st.pts.map(p=>{
+          const cls = (p.over || p.v > MM_LIMIT) ? 'bad' : (p.v >= 8 ? 'warn' : (p.v === 0 ? 'zero' : ''));
+          const w = p.v === 0 ? '2px' : Math.min(p.v, MM_CEIL)/MM_CEIL*100 + '%';
+          const val = p.over ? '✕&gt;20' : fmtMm(p.v);
+          return `<div class="mc-row"><span class="mc-track"><i class="mc-fill ${cls}" style="width:${w}"></i></span>`
+            + `<span class="mc-val ${cls==='zero'?'':cls}">${val}</span></div>`;
+        }).join('');
+      }
+      // Karta měření: příčné nahoře (má přednost), pod ním podélné
+      function measureCardHtml(entry){
+        const blok = (title, str)=>{
+          const st = rovinatostStats(str, '');
+          return `<div class="mc-head"><span class="t">${title}</span>`
+            + `<span class="s">2 m lať · ${pluralHodnot(st?st.total:0)}</span>`
+            + `<span class="l">mez ${MM_LIMIT} mm</span></div>`
+            + `<div title="${escAttr(str||'')}">${measureRowsHtml(str)}</div>`;
+        };
+        return `<div class="mc">${blok('Příčné měření', entry.crossNote)}<div class="mc-sep"></div>`
+          + `${blok('Podélné měření', entry.longNote)}</div>`;
+      }
+      // Vyplněná office pole (jen když je office část hotová)
+      function edOfficeRowsHtml(entry){
+        const o = entry.office;
+        if(!o || !entry.officeDone) return '';
+        const rows = [];
+        OFFICE_SCHEMA.forEach(sec=> sec.fields.forEach(f=>{
+          if(f.type === 'photo') return;
+          if(o[f.key]) rows.push(`<div class="row"><b>${escapeHtml(f.label)}</b><span>${escapeHtml(o[f.key])}</span></div>`);
+        }));
+        if(o.rovinatost_verdikt) rows.push(`<div class="row"><b>Rovinatost (auto)</b><span>${escapeHtml(o.rovinatost_verdikt)}</span></div>`);
+        if(!rows.length) return '';
+        return `<div class="ed-office"><span class="k">Office část kontroly</span>${rows.join('')}</div>`;
+      }
+      // Hlavička + tělo + pásek polí. Stejné HTML v panelu i v #viewer.
+      function buildEntryDetailHtml(entry){
+        const st = rovinatostStats(entry.longNote, entry.crossNote);
+        const stav = entryStav(st);
+        const o = entry.office || {};
+        const idCev = o.id_cev
+          ? escapeHtml(o.id_cev)
+          : '<span style="color:var(--text-faint)">bez ID CEV (doplní Office)</span>';
+        const pill = !st ? '<span class="ed-pill none">nezměřeno</span>'
+          : (st.vyhovuje ? '<span class="ed-pill ok">vyhovující</span>' : '<span class="ed-pill bad">nevyhovující</span>');
+        const podil = st
+          ? `<span class="ed-num"><span class="k">hodnot do ${MM_LIMIT} mm</span>`
+            + `<span class="v">${st.ok} z ${st.total}</span><span class="n">${st.pct} % · mez ${MM_SHARE} %</span></span>`
+          : '';
+        const maxCls = stav === 'bad' ? 'bad' : (stav === 'warn' ? 'warn' : '');
+        const maxVal = !st ? '—' : (st.hasOver ? '✕ &gt; 20' : `${fmtMm(st.max)} / ${MM_LIMIT} mm`);
+        const prim = entry.officeDone
+          ? '<button type="button" class="btn-primary" data-ed="protokol">📄 Protokol (PDF)</button>'
+          : '<button type="button" class="btn-primary" data-ed="office">Doplnit v Office</button>';
+        const foto = entry.photo
+          ? `<div class="ed-photo" data-ed="full" data-img="photo"><img src="${entry.photo}" alt="foto při kontrole" loading="lazy"><span class="cap">při kontrole</span></div>`
+          : '<div class="ed-photo empty">bez fotky z výjezdu</div>';
+        const after = edAfterPhoto(entry);
+        const fotoPo = after
+          ? `<div class="ed-photo" data-ed="full" data-img="after"><img src="${after}" alt="foto po opravě" loading="lazy"><span class="cap">po opravě</span></div>`
+          : '<div class="ed-photo empty">foto po opravě<br>— doplní Office</div>';
+        const syncTxt = entry.synced ? '✓ odesláno' : '⏳ neodesláno';
+        return `<div class="ed" data-detail-id="${escAttr(entry.id)}">
+          <div class="ed-head">
+            <div class="ed-h1">
+              <span class="ed-time">${escapeHtml(entry.timeText||'')}</span>
+              ${entry.folder?`<span class="ed-folder">${escapeHtml(entry.folder)}</span>`:''}
+              <span class="ed-acts">${prim}<button type="button" class="ed-more" data-ed="menu" aria-label="Další akce">⋯</button></span>
+            </div>
+            <div class="ed-sub">${escapeHtml(entry.inspectors||'bez jmen')} · ${idCev}</div>
+            <div class="ed-nums">
+              ${pill}
+              ${podil}
+              <span class="ed-num"><span class="k">max. odchylka</span><span class="v ${maxCls}">${maxVal}</span></span>
+            </div>
+          </div>
+          <div class="ed-body">
+            <div class="ed-photos">${foto}${fotoPo}</div>
+            <div class="ed-meas">${measureCardHtml(entry)}</div>
+          </div>
+          <div class="ed-strip">
+            <div class="f"><span class="k">Vyjetá kolej</span><span class="v">${entry.vyjetaKolej?'Ano':'Ne'}</span></div>
+            <div class="f"><span class="k">Poznámka z výjezdu</span><span class="v">${entry.note?escapeHtml(entry.note):'—'}</span></div>
+            <div class="f"><span class="k">Synchronizace</span><span class="v">${syncTxt}</span></div>
+            <div class="f"><span class="k">Office část</span><span class="v">${entry.officeDone?'✓ hotovo':'⏳ čeká'}</span></div>
+          </div>
+          ${edOfficeRowsHtml(entry)}
+        </div>`;
+      }
+      // Přilepená lišta dole (jen mobil / úzký web) — primární akce + stav synchronizace
+      function buildEntryBarHtml(entry){
+        const prim = entry.officeDone
+          ? '<button type="button" class="btn-primary" data-ed="protokol">📄 Protokol (PDF)</button>'
+          : '<button type="button" class="btn-primary" data-ed="office">Doplnit v Office</button>';
+        return `<div class="ed-bar">${prim}<span class="st">${entry.synced?'✓ odesláno':'⏳ neodesláno'}</span></div>`;
+      }
+      // Pravý panel: mapa + GPS + dokumenty. withMap=false → jen GPS a dokumenty (mobilní detail).
+      function buildEntrySideHtml(entry, withMap){
+        const c = entry.coords;
+        const coordsTxt = c ? escapeHtml(c.lat + ', ' + c.lon) : 'bez polohy';
+        const mapa = withMap
+          ? `<div class="es-card"><span class="h">Poloha</span>`
+            + (c ? '<div id="es-map" class="es-map"></div>' : '<div class="es-nomap">bez polohy</div>')
+            + `<div class="es-gps"><span class="c">${coordsTxt}</span>`
+            + `<button type="button" class="btn-small" data-ed="coords">Upravit</button></div></div>`
+          : `<div class="es-card"><span class="h">GPS</span><div class="es-gps"><span class="c">${coordsTxt}</span>`
+            + `<button type="button" class="btn-small" data-ed="coords">Upravit</button></div></div>`;
+        const reps = (entry.office && Array.isArray(entry.office.repairs)) ? entry.office.repairs.filter(r=>r.pdf) : [];
+        const pdfRows = reps.length
+          ? reps.map((r,i)=>`<button type="button" class="es-doc" data-ed="pdf" data-idx="${i}">📄 Záznam o opravě${reps.length>1?' #'+(i+1):''}<span class="n">PDF</span></button>`).join('')
+          : ((entry.office && entry.office.repairPdf)
+              ? '<button type="button" class="es-doc" data-ed="pdf" data-idx="-1">📄 Záznam o opravě<span class="n">PDF</span></button>'
+              : '<button type="button" class="es-doc" disabled>📄 Záznam o opravě<span class="n">nenahráno</span></button>');
+        const protoRow = entry.officeDone
+          ? '<button type="button" class="es-doc" data-ed="protokol">📑 Protokol z měření<span class="n">vygenerovat</span></button>'
+          : '<button type="button" class="es-doc" disabled>📑 Protokol z měření<span class="n">lze až po Office části</span></button>';
+        const fotoRow = entry.photo
+          ? `<button type="button" class="es-doc" data-ed="photo-dl">📷 Foto při kontrole<span class="n">${photoSizeMb(entry.photo)}</span></button>`
+          : '<button type="button" class="es-doc" disabled>📷 Foto při kontrole<span class="n">chybí</span></button>';
+        return `<div class="es">${mapa}<div class="es-card"><span class="h">Dokumenty</span>${pdfRows}${protoRow}${fotoRow}</div></div>`;
+      }
+      // Akce v detailu (stejné hooky v panelu i ve #viewer)
+      function wireEntryDetail(root, entry, ctx){
+        ctx = ctx || {};
+        root.querySelectorAll('[data-ed]').forEach(el=> el.addEventListener('click', async (ev)=>{
+          ev.stopPropagation();
+          switch(el.dataset.ed){
+            case 'full': openImageFull(el.dataset.img === 'after' ? edAfterPhoto(entry) : entry.photo); break;
+            case 'office': if(ctx.beforeLeave) ctx.beforeLeave(); openOfficeForm(entry.id); break;
+            case 'menu': openActionSheet(entry, ctx.folder || null); break;
+            case 'protokol': await edProtokol(entry); break;
+            case 'pdf': {
+              const i = +el.dataset.idx;
+              openPdf(i >= 0 ? entry.office.repairs[i].pdf : (entry.office && entry.office.repairPdf));
+              break;
+            }
+            case 'photo-dl': downloadPhoto(entry.photo, entry.id); break;
+            case 'coords': if(ctx.onEditCoords) ctx.onEditCoords(); break;
+          }
+        }));
+      }
+      async function edProtokol(entry){
+        const o = entry.office || {};
+        try{ await generateProtocolPdf(entry, o, edAfterPhoto(entry), entry.photo); }
+        catch(err){ console.error('protokol:', err); alert('Protokol se nepodařilo vytvořit: ' + (err.message||err)); }
+      }
+      // Fullscreen fotka (krok v historii → tlačítko Zpět ji zavře)
+      function openImageFull(src){
+        if(!src){ alert('Fotografie není k dispozici.'); return; }
+        const box = document.getElementById('img-full');
+        box.querySelector('img').src = src;
+        box.hidden = false;
+        history.pushState({modal:'imgfull'}, '');
+      }
+      function closeImageFull(){
+        const box = document.getElementById('img-full');
+        if(box){ box.hidden = true; box.querySelector('img').src = ''; }
+      }
+
+      // --- Panel s detailem (web ≥ 1200 px) ---
+      function isWidePanes(){ return window.matchMedia('(min-width:1200px)').matches; }
+      async function openEntryDetail(id){
+        if(!isWidePanes()){ viewFull(id); return; }
+        detailId = id;
+        await renderDetailPane();
+      }
+      async function renderDetailPane(){
+        const dEl = document.getElementById('zn-detail'), sEl = document.getElementById('zn-side');
+        if(!dEl || !sEl) return;
+        const entry = detailId ? await getEntryById(detailId) : null;
+        document.querySelectorAll('#entries .zn-card').forEach(c=>
+          c.classList.toggle('sel', !!entry && c.dataset.id === entry.id));
+        if(!entry){
+          detailId = null;
+          destroySideMap();
+          dEl.innerHTML = '<div class="ed-empty">Vyber záznam ze seznamu</div>';
+          sEl.innerHTML = '';
+          return;
+        }
+        dEl.innerHTML = buildEntryDetailHtml(entry);
+        sEl.innerHTML = buildEntrySideHtml(entry, true);
+        wireEntryDetail(dEl, entry, { folder: znFolderShown });
+        wireEntryDetail(sEl, entry, { folder: znFolderShown, onEditCoords: ()=> toggleSideCoordEdit(entry) });
+        initSideMap(entry);
+      }
+      // --- Mapa v pravém panelu: body obarvené podle verdiktu, aktivní větší s oranžovým kroužkem ---
+      function sideMapSig(){ return (znFolderShown||'') + '|' + (lastFiltered ? lastFiltered.length : 0); }
+      function destroySideMap(){
+        if(znSideMap){ znSideMap.remove(); znSideMap = null; }
+        znSideEditMarker = null;
+      }
+      function initSideMap(active){
+        destroySideMap();
+        const el = document.getElementById('es-map');
+        if(!el || !active.coords) return;
+        znSideMap = L.map(el, { zoomControl:false, attributionControl:false });
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom:19 }).addTo(znSideMap);
+        L.control.zoom({ position:'bottomright' }).addTo(znSideMap);
+        (lastFiltered || []).filter(e=> e.coords).forEach(e=>{
+          const stav = entryStav(rovinatostStats(e.longNote, e.crossNote));
+          const col = stav==='bad' ? '#c62828' : (stav==='warn' ? '#d69220' : (stav==='ok' ? '#1e7d34' : '#a9b4bb'));
+          const aktiv = e.id === active.id;
+          L.circleMarker([+e.coords.lat, +e.coords.lon], {
+            radius: aktiv?9:5, color: aktiv?'#C2461A':'#ffffff', weight: aktiv?3:1.5,
+            fillColor: col, fillOpacity: 0.95
+          }).addTo(znSideMap).on('click', ()=> openEntryDetail(e.id));
+        });
+        const c = [+active.coords.lat, +active.coords.lon];
+        if(znSideMapView && znSideMapView.sig === sideMapSig()) znSideMap.setView(znSideMapView.center, znSideMapView.zoom);
+        else znSideMap.setView(c, 16);
+        if(!znSideMap.getBounds().contains(c)) znSideMap.panTo(c);
+        znSideMap.on('moveend', ()=>{
+          if(znSideMap) znSideMapView = { sig: sideMapSig(), center: znSideMap.getCenter(), zoom: znSideMap.getZoom() };
+        });
+        setTimeout(()=>{ if(znSideMap) znSideMap.invalidateSize(); }, 60);
+      }
+      // Přesun kontrolního bodu přímo v pravém panelu (tažením markeru)
+      function toggleSideCoordEdit(entry){
+        if(!znSideMap){ alert('Záznam nemá polohu — otevři detail na mobilu a doplň ji tam.'); return; }
+        if(znSideEditMarker){ endSideCoordEdit(); return; }
+        const gps = document.querySelector('#zn-side .es-gps');
+        znSideEditMarker = L.marker(entry.coords ? [+entry.coords.lat, +entry.coords.lon] : znSideMap.getCenter(),
+          { draggable:true }).addTo(znSideMap);
+        const save = document.createElement('button');
+        save.type = 'button'; save.className = 'btn-small'; save.id = 'es-coords-save'; save.textContent = 'Uložit polohu';
+        save.onclick = async ()=>{
+          const ll = znSideEditMarker.getLatLng();
+          entry.coords = { lat: ll.lat.toFixed(6), lon: ll.lng.toFixed(6) };
+          await updateEntry(entry);
+          endSideCoordEdit();
+          await renderDetailPane();
+        };
+        if(gps) gps.appendChild(save);
+      }
+      function endSideCoordEdit(){
+        if(znSideEditMarker && znSideMap) znSideMap.removeLayer(znSideEditMarker);
+        znSideEditMarker = null;
+        const b = document.getElementById('es-coords-save'); if(b) b.remove();
+      }
+
       // Buňka záznamu podle klíče sloupce
       function entryCellHtml(key, e){
         switch(key){
@@ -2021,7 +2441,7 @@
           const tr = ev.target.closest('[data-id]'); if(!tr) return;
           const id = tr.dataset.id;
           switch(act.dataset.act){
-            case 'view': viewFull(id); break;
+            case 'view': openEntryDetail(id); break;
             case 'menu': { ev.stopPropagation(); const e = await getEntryById(id); openActionSheet(e || { id }, folderToShow); break; }
           }
         });
@@ -2056,6 +2476,7 @@
         const ba = document.getElementById('bulk-all');
         if(ba) ba.checked = lastFiltered.length>0 && lastFiltered.every(e=> selectedIds.has(e.id));
         updateBulkBar();
+        await renderDetailPane();
       }
 
       // ---- Export vyfiltrované / vybrané množiny ----
@@ -2320,6 +2741,7 @@
       }
 
       async function renderFoldersAndEntries(folderToShow = null) {
+        znFolderShown = folderToShow;
         const allEntries = await getAllEntries();
         const foldersEl = document.getElementById('folders');
         const entriesEl = document.getElementById('entries');
@@ -2331,6 +2753,7 @@
 
         // Aktivní filtr NEBO režim „Vše pod sebou" → plochý seznam napříč složkami
         if(filterActive() || znViewMode==='flat'){ await renderFilteredResults(allEntries); return; }
+        znFolderShown = folderToShow;
         document.getElementById('zn-toolbar').hidden = true;
         document.getElementById('filter-count').hidden = true;
         document.getElementById('load-more-wrap').hidden = true;
@@ -2426,6 +2849,9 @@
             updateBulkBar();
             statusEl.textContent = `${entriesInFolder.length} ${entriesInFolder.length === 1 ? 'záznam' : 'záznamy'}`;
         }
+        // přehled složek → detail v panelu nemá co zobrazit
+        if(folderToShow === null) detailId = null;
+        await renderDetailPane();
     }
       
       // --- Vyhodnocení rovinatosti ---
@@ -2451,82 +2877,57 @@
         await renderFoldersAndEntries();
       }
 
+      // Detail na mobilu / úzkém webu: stejné bloky jako v panelu, přes celou obrazovku
       async function viewFull(id){
-        const data = await getAllEntries(); const entry = data.find(d=>d.id===id); if(!entry){ alert('Záznam nenalezen'); return; }
-        const viewer=document.getElementById('viewer'); const body=document.getElementById('viewer-body'); const coordsText = entry.coords?`${entry.coords.lat}, ${entry.coords.lon}`:'bez polohy';
-        const rovBadge = rovinatostBadge(entry.longNote, entry.crossNote);
-        body.innerHTML = `
-          <h1>Záznam z kontroly kvality</h1>
-          <div class="meta"><strong>📅 Čas:</strong> ${entry.timeText} &nbsp; <strong>📍 Poloha:</strong> <span id="coords-display">${coordsText}</span></div>
-          <img src="${entry.photo}" alt="Fotografie záznamu">
-          ${entry.longNote?`<div class="field"><strong>📏 Podélné měření</strong><div class="field-value">${escapeHtml(entry.longNote)}</div></div>`:''}
-          ${entry.crossNote?`<div class="field"><strong>↔️ Příčné měření</strong><div class="field-value">${escapeHtml(entry.crossNote)}</div></div>`:''}
-          ${rovBadge?`<div class="field"><strong>📐 Rovinatost</strong><div class="field-value">${rovBadge}</div></div>`:''}
-          <div class="field"><strong>🛞 Vyjetá kolej</strong><div class="field-value">${entry.vyjetaKolej?'Ano':'Ne'}</div></div>
-          ${entry.note?`<div class="field"><strong>📝 Poznámka</strong><div class="field-value">${escapeHtml(entry.note)}</div></div>`:''}
-          ${afterPhotosDetailHtml(entry)}
-          ${officeSummaryHtml(entry)}
-          <div style="margin-top:12px;display:flex;gap:8px;flex-wrap:wrap">
-            <button id="viewer-download" class="btn-small">Stáhnout foto</button>
-            <button id="viewer-office" class="btn-small">${entry.officeDone?'Upravit office část':'Doplnit office část'}</button>
-            ${repairPdfButtonsHtml(entry)}
-            <button id="edit-coords-btn" class="btn-small">Upravit souřadnice</button>
-            <button id="viewer-delete" class="btn-small danger">Smazat záznam</button>
-          </div>
-          <footer>Kontrola kvality | ${new Date().toLocaleDateString('cs-CZ')}</footer>
-        `;
+        const entry = await getEntryById(id); if(!entry){ alert('Záznam nenalezen'); return; }
+        const viewer = document.getElementById('viewer'), body = document.getElementById('viewer-body');
+        body.innerHTML = buildEntryDetailHtml(entry) + buildEntrySideHtml(entry, false) + buildEntryBarHtml(entry);
         viewer.setAttribute('aria-hidden','false'); viewer.style.display='flex'; document.documentElement.style.overflow='hidden';
-        
+
         const editMapContainer = document.getElementById('edit-map-container');
         const saveCoordsBtn = document.getElementById('save-coords-btn');
-        let editMap;
-        let marker;
+        let editMap = null, marker = null;
 
-        document.getElementById('edit-coords-btn').onclick = () => {
-            editMapContainer.style.display = 'block';
-            if (!editMap) {
-                editMap = L.map('edit-map').setView(entry.coords ? [entry.coords.lat, entry.coords.lon] : [49.8, 15.5], 13);
-                L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(editMap);
-            }
-            if (marker) {
-                editMap.removeLayer(marker);
-            }
-            if (entry.coords) {
-                marker = L.marker([entry.coords.lat, entry.coords.lon], { draggable: true }).addTo(editMap);
-                editMap.setView([entry.coords.lat, entry.coords.lon], 16);
-            } else {
-                marker = L.marker(editMap.getCenter(), { draggable: true }).addTo(editMap);
-                 editMap.setView([49.8, 15.5], 7);
-            }
+        const closeViewer = ()=>{
+          viewer.setAttribute('aria-hidden','true');
+          viewer.style.display = 'none';
+          document.documentElement.style.overflow = '';
+          editMapContainer.style.display = 'none';
+          if(editMap){ editMap.remove(); editMap = null; marker = null; }
+        };
+        // přesun kontrolního bodu (mapa je součástí #viewer)
+        const openEditMap = ()=>{
+          editMapContainer.style.display = 'block';
+          if(!editMap){
+            editMap = L.map('edit-map').setView(entry.coords ? [+entry.coords.lat, +entry.coords.lon] : [49.8, 15.5], 13);
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(editMap);
+          }
+          if(marker) editMap.removeLayer(marker);
+          if(entry.coords){
+            marker = L.marker([+entry.coords.lat, +entry.coords.lon], { draggable:true }).addTo(editMap);
+            editMap.setView([+entry.coords.lat, +entry.coords.lon], 16);
+          } else {
+            marker = L.marker(editMap.getCenter(), { draggable:true }).addTo(editMap);
+            editMap.setView([49.8, 15.5], 7);
+          }
+          setTimeout(()=>{ if(editMap) editMap.invalidateSize(); }, 60);
+        };
+        saveCoordsBtn.onclick = async ()=>{
+          if(!marker) return;
+          const ll = marker.getLatLng();
+          entry.coords = { lat: ll.lat.toFixed(6), lon: ll.lng.toFixed(6) };
+          await updateEntry(entry);
+          editMapContainer.style.display = 'none';
+          if(editMap){ editMap.remove(); editMap = null; marker = null; }
+          const gc = body.querySelector('.es-gps .c');
+          if(gc) gc.textContent = entry.coords.lat + ', ' + entry.coords.lon;
+          await renderFoldersAndEntries(znFolderShown);
+          alert('Souřadnice aktualizovány.');
         };
 
-        saveCoordsBtn.onclick = async () => {
-            const newCoords = marker.getLatLng();
-            entry.coords = { lat: newCoords.lat.toFixed(6), lon: newCoords.lng.toFixed(6) };
-            await updateEntry(entry);
-            document.getElementById('coords-display').textContent = `${entry.coords.lat}, ${entry.coords.lon}`;
-            editMapContainer.style.display = 'none';
-            alert('Souřadnice aktualizovány.');
-        };
-
-        const closeViewer = () => {
-            viewer.setAttribute('aria-hidden','true');
-            viewer.style.display='none';
-            document.documentElement.style.overflow='';
-            editMapContainer.style.display = 'none';
-            if (editMap) {
-                editMap.remove();
-                editMap = null;
-            }
-        };
-
+        wireEntryDetail(body, entry, { folder: znFolderShown, beforeLeave: closeViewer, onEditCoords: openEditMap });
         document.getElementById('viewer-close').onclick = ()=> history.back();
         document.getElementById('viewer-backdrop').onclick = ()=> history.back();
-        document.getElementById('viewer-download').onclick = ()=> downloadPhoto(entry.photo, entry.id);
-        document.getElementById('viewer-office').onclick = ()=>{ closeViewer(); openOfficeForm(entry.id); };
-        { const pb = document.getElementById('viewer-pdf'); if(pb) pb.onclick = ()=> openPdf(entry.office && entry.office.repairPdf); }
-        viewer.querySelectorAll('[data-viewer-pdf]').forEach(b=> b.onclick = ()=> openPdf(entry.office.repairs[+b.dataset.viewerPdf].pdf));
-        document.getElementById('viewer-delete').onclick = async ()=>{ if(confirm('Opravdu smazat tento záznam?')){ await deleteEntryFully(entry.id); closeViewer(); await renderFoldersAndEntries(); }};
 
         // registrace pro tlačítko Zpět (mobil/prohlížeč)
         viewerCloseFn = closeViewer;
@@ -2922,6 +3323,9 @@
           catch(err){ setSyncStatus(''); alert('Export selhal: '+(err.message||err)); }
         }));
 
+        // Fullscreen fotka z detailu – klik kdekoli zavře (přes historii, ať funguje i Zpět)
+        document.getElementById('img-full').addEventListener('click', ()=> history.back());
+
         // Dialog akcí záznamu – obsluha tlačítek
         const actionSheet = document.getElementById('action-sheet');
         actionSheet.addEventListener('click', async (ev)=>{
@@ -2930,10 +3334,10 @@
           const a = b.dataset.as, e = _asEntry, folder = _asFolder;
           if(a === 'cancel' || !e){ closeActionSheet(); return; }
           closeActionSheet();
-          if(a === 'view') viewFull(e.id);
+          if(a === 'view') openEntryDetail(e.id);
           else if(a === 'download') downloadPhoto(e.photo, e.id);
           else if(a === 'move') moveEntryPrompt(e.id, folder);
-          else if(a === 'delete'){ if(confirm('Opravdu smazat tento záznam?')){ await deleteEntryFully(e.id); selectedIds.delete(e.id); await renderFoldersAndEntries(folder); } }
+          else if(a === 'delete'){ if(confirm('Opravdu smazat tento záznam?')){ await deleteEntryFully(e.id); selectedIds.delete(e.id); if(detailId === e.id) detailId = null; if(viewerCloseFn && document.getElementById('viewer').getAttribute('aria-hidden') === 'false') history.back(); await renderFoldersAndEntries(folder); } }
         });
         // Menu „Sloupce" – zaškrtávátka viditelnosti sloupců
         (function(){
