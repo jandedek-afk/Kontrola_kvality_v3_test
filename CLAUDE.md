@@ -41,12 +41,19 @@
 - Karty v obsahu: **1px rámeček + radius 8 px, žádný stín** (stín jen u overlayů — menu, dialog, drawer, plovoucí foto).
 - Čísla (čas, mm, GPS, ID CEV) v `var(--font-num)`; popisky sekcí 9–10 px verzálkami s `letter-spacing:var(--ls-caps)`.
 - **Zobrazení rovinatosti má jednu pravdu:** mez 10 mm, strop stupnice 20 mm, vyhovující = ≥ 75 % hodnot ≤ 10 mm (JS konstanty `MM_LIMIT`, `MM_CEIL`, `MM_SHARE`). Pruh: 10 mm = 50 % šířky. Barvy: > 10 mm nebo `x` červená, 8–10 mm oranžová, jinak `--viz-neutral`.
+- Ve složce `Design/` je **jen `patch/`** (`kk-tokens.css`, `README.md`, `zadani-pro-ai-vscode.md`, `zaznamy-patch.md`). Podklady `design/readme.md` a **klikací předloha `design/ui-kit.html`**, na které se zadání odkazuje (kap. 9), **v repu nikdy nebyly** — rozměry a rozvržení se bralo z textu zadání. Nehledej je.
+- Past při případném novém kopírování tokenů: `kk-tokens.css` má **v úvodním komentáři starý řádek `:root{--brand:#1976d2;…}`**. Ber až **druhý** výskyt `:root{`, jinak se do `index.html` zatáhne i konec komentáře s `*/` a CSS parser zahodí celý token blok (stalo se v Buildu 45, opraveno v 46).
 
 ## Příkazy
 - **Lokální vývoj:** `python -m http.server 8000 --bind 127.0.0.1` ve složce → `http://localhost:8000` (localhost = bezpečný kontext, funguje SW/kamera/GPS). Node na tomto stroji není.
 - **Nasazení:** `git commit` + `git push` → GitHub Pages → `https://jandedek-afk.github.io/Kontrola_kvality_v3_test/` (naživo do ~1 min).
 - **Drobné změny pushuj rovnou** do `main` bez doptávání a bez zvedání verze (uživatel testuje naživo v appce). Verzi zvedej jen u řádného vydání. Před riskantním krokem (mazání dat, změna DB schématu/RLS, sahání na `../v2`) se vždy ptej.
-- **Build ani testy nejsou.**
+- **Build ani testy nejsou.** Vzhled se dá ověřit i bez ručního klikání: `python -m http.server` + headless Chrome
+  (`"/c/Program Files/Google/Chrome/Application/chrome.exe" --headless=new --disable-gpu --screenshot=out.png --window-size=1440,1000 URL`),
+  a pomocná stránka ve stejné složce, která `index.html` načte do `<iframe>` a volá jeho funkce (`buildEntryDetailHtml`, `rovinatostStats`, …) — stejný origin, takže na ně parent dosáhne.
+  **Pozor:** v headless se init appky zasekne / skončí na `sb.auth.getSession()` (Supabase je nedostupné) → appka pak sama zobrazí přihlášení a **listenery navěšené po tom awaitu nefungují**.
+  V pomocné stránce se to obejde `w.showLogin = ()=>{}` a `w.getAllEntries = ()=> Promise.resolve(testovaciData)`. **Zadávání hodnot, ukládání a synchronizaci takhle ověřit nelze** — to jen naživo.
+  Pomocné stránky do repa necommituj (jsou ve scratchpadu session).
 
 <!-- Vydání aktualizace uživatelům = zvednout verzi NA ČTYŘECH místech zároveň:
      1) CACHE_NAME v service-worker.js,
