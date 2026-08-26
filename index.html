@@ -275,7 +275,7 @@
     .sidebar-foot .sync-state{color:var(--muted);font-size:0.8rem;min-height:1em}
     .sidebar-backdrop{display:none;position:fixed;inset:0;background:rgba(0,0,0,0.4);z-index:900}
     .sidebar.open ~ .sidebar-backdrop{display:block}
-    .main{flex:1;max-width:1200px;width:100%;margin:0 auto;padding:64px 1.5rem 3rem;display:flex;flex-direction:column;min-height:100vh}
+    .main{flex:1;max-width:1840px;width:100%;margin:0 auto;padding:64px 1.5rem 3rem;display:flex;flex-direction:column;min-height:100vh}
     .main > footer{margin-top:auto}
     /* Plovoucí tlačítko menu (tři čárky) – stále na obrazovce (i při scrollování) */
     .menu-toggle{position:fixed;top:10px;left:10px;z-index:999;display:inline-flex;align-items:center;justify-content:center;background:var(--brand);color:#fff;border:none;width:44px;height:44px;border-radius:8px;font-size:20px;box-shadow:0 2px 10px rgba(0,0,0,0.25);cursor:pointer}
@@ -284,6 +284,8 @@
     .view-head{margin:0 0 1rem;font-size:1.3rem;color:var(--brand)}
     .view-sub{color:var(--muted);font-size:0.9rem;margin:-0.5rem 0 1.25rem}
     @media (max-width:900px){ .main{padding:64px 0.9rem 3rem} }
+    /* Výjezd je jednosloupcový formulář – na širokém monitoru ho nerozťahuj přes celou plochu */
+    @media (min-width:1000px){ #view-vyjezd{max-width:860px} }
     /* --- Office formulář --- */
     .office-picker{background:var(--surface-card);padding:1rem;border-radius:var(--r-5);border:var(--border-hair);margin-bottom:1rem}
     .office-list{display:flex;flex-direction:column;gap:8px;margin-top:10px;width:100%}
@@ -447,7 +449,7 @@
     .zn-time{font-family:var(--font-num);font-weight:600;font-size:0.85rem;color:var(--ink-900);flex:0 0 auto}
     .zn-who{font-size:0.78rem;color:var(--ink-500);flex:1 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
     .zn-sync{font-size:0.7rem;color:#8a6d00;flex:0 0 auto}
-    .zn-line2{font-size:0.74rem;color:var(--ink-300);margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+    .zn-line2{display:block;font-size:0.74rem;color:var(--ink-300);margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
     .zn-tag{font-size:0.7rem;font-weight:500;padding:2px 6px;border-radius:3px;white-space:nowrap;flex:0 0 auto}
     .zn-tag.office-wait{background:var(--orange-050);color:var(--orange-700)}
     .zn-tag.office-done{background:#e6f4ea;color:#1e7d34}
@@ -724,6 +726,34 @@
       .of-pane-form{order:2}
       .of-pane-list{order:3;margin-top:var(--sp-12)}
     }
+    /* === Široký monitor (≥ 1600 px): plocha, kterou uvolnil strop 1840 px === */
+    @media (min-width:1600px){
+      /* Záznamy: širší seznam (celá jména + mini graf hodnot) a širší pravý panel */
+      .zn-panes{grid-template-columns:400px minmax(0,1fr) 340px}
+      .zn-pane-list .zn-spark{display:flex}
+      .zn-pane-list .zn-card{gap:var(--gap-row);padding:var(--pad-card)}
+      .zn-pane-list .zn-thumb{width:52px;height:40px}
+      .zn-pane-list .zn-time{font-size:0.85rem}
+      .zn-pane-list .zn-who{font-size:0.78rem}
+      .zn-pane-list .zn-line2{font-size:0.74rem}
+      .zn-pane-list .zn-max{width:44px;font-size:0.8rem}
+      .zn-pane-list .entry-menu-btn{width:30px;height:30px}
+      /* detail: větší fotky a vyšší mapa */
+      .ed-photos{width:280px}
+      .ed-photo img{height:196px}
+      .es-map,.es-nomap{height:300px}
+      /* Office: širší seznam čekajících i pravý panel s měřením a fotkami */
+      .of-panes{grid-template-columns:400px minmax(0,940px) minmax(380px,1fr)}
+      .of-pane-list .zn-spark{display:flex}
+      .of-pane-list .zn-card{gap:var(--gap-row);padding:var(--pad-card)}
+      .of-pane-list .zn-thumb{width:52px;height:40px}
+      .of-pane-list .zn-max{width:44px;font-size:0.8rem}
+      .of-pane-side .photos-compare .of-photo img{max-height:150px}
+      .of-pane-side .photos-compare .pc-title{font-size:var(--fs-meta)}
+      /* výběr záznamu v Office je přes celou šířku – karty do dvou kolonek, ať řádek není přes celý monitor */
+      .office-picker .zn-list{grid-template-columns:repeat(2,minmax(0,1fr))}
+    }
+    @media (min-width:2200px){ .office-picker .zn-list{grid-template-columns:repeat(3,minmax(0,1fr))} }
   </style>
 </head>
 <body>
@@ -939,7 +969,7 @@
 
           <footer>
             Aplikace funguje offline. Data jsou uložena lokálně v zařízení (IndexedDB).<br>
-            <span style="color:var(--muted);font-size:0.95em;">Verze aplikace: v3.2.0-test · Build 2026-08-26·50</span>
+            <span style="color:var(--muted);font-size:0.95em;">Verze aplikace: v3.2.0-test · Build 2026-08-26·51</span>
           </footer>
         </main>
         <!-- Spodní lišta karet: mobil ≤640 px (drawer zůstává pro tablety a jako fallback) -->

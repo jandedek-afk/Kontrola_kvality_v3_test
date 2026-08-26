@@ -41,6 +41,8 @@
 - Karty v obsahu: **1px rámeček + radius 8 px, žádný stín** (stín jen u overlayů — menu, dialog, drawer, plovoucí foto).
 - Čísla (čas, mm, GPS, ID CEV) v `var(--font-num)`; popisky sekcí 9–10 px verzálkami s `letter-spacing:var(--ls-caps)`.
 - **Zobrazení rovinatosti má jednu pravdu:** mez 10 mm, strop stupnice 20 mm, vyhovující = ≥ 75 % hodnot ≤ 10 mm (JS konstanty `MM_LIMIT`, `MM_CEIL`, `MM_SHARE`). Pruh: 10 mm = 50 % šířky. Barvy: > 10 mm nebo `x` červená, 8–10 mm oranžová, jinak `--viz-neutral`.
+- **Šířka rozvržení (Build 51):** `.main` má strop **1840 px** (pod ním je obsah plný, ne na střed — dřív 1200 px). Na **≥1600 px** je zvláštní blok na konci `<style>`: Záznamy `400px | 1fr | 340px` (v seznamu se vrací mini graf, větší náhled), fotky v detailu 280 px, mapa 300 px; Office `400px | max 940px | zbytek (min 380px)` — **formulář se nerozťahuje**, plochu navíc bere pravý panel s měřením a fotkami; výběr záznamu v Office jde do 2 kolonek (≥2200 px do 3). **Výjezd je capnutý na 860 px** (`#view-vyjezd`), je to jednosloupcový formulář.
+- Past: `.zn-who` a `.zn-line2` jsou `<span>` — `text-overflow:ellipsis` na nich funguje jen s `display:block`, jinak text přeteče přes mini graf (opraveno v Buildu 51).
 - Ve složce `Design/` je **jen `patch/`** (`kk-tokens.css`, `README.md`, `zadani-pro-ai-vscode.md`, `zaznamy-patch.md`). Podklady `design/readme.md` a **klikací předloha `design/ui-kit.html`**, na které se zadání odkazuje (kap. 9), **v repu nikdy nebyly** — rozměry a rozvržení se bralo z textu zadání. Nehledej je.
 - Past při případném novém kopírování tokenů: `kk-tokens.css` má **v úvodním komentáři starý řádek `:root{--brand:#1976d2;…}`**. Ber až **druhý** výskyt `:root{`, jinak se do `index.html` zatáhne i konec komentáře s `*/` a CSS parser zahodí celý token blok (stalo se v Buildu 45, opraveno v 46).
 
@@ -77,7 +79,7 @@
 - Bez potvrzení nemazat data, neměnit DB schéma ani RLS pravidla.
 - Registrace je otevřená; potvrzování e-mailu je v Supabase pro test vypnuté.
 
-## Aktuální stav (v3.2.0-test, Build 50)
+## Aktuální stav (v3.2.0-test, Build 51)
 - **Název appky = jen „Kontrola kvality"** (bez „Foto poznámky") — title, manifest `name`/`short_name`, apple-title, patička (Build 43).
 - **Hotovo (základ):** komprese fotek, přihlášení (otevřená registrace), offline-first ukládání, **funkční obousměrná synchronizace (ověřeno na PC i Androidu)**, mapa, složky, service worker „nejdřív síť", fotka v DB.
 - **Navigace (Build 47):** na **≥1000 px trvalá tmavá vodorovná lišta** `.topnav` (`#14191D`) — 5 karet, vpravo stav synchronizace, ⟳ Aktualizovat a e-mail; plovoucí ☰ je tam skrytý. Na **≤640 px spodní lišta karet** `.botnav` (aktivní oranžově, ≥44 px, `safe-area`). Drawer `.sidebar` s ☰ zůstává pro tablety a jako fallback (nese Synchronizovat / Odhlásit). Stav synchronizace, tlačítko aktualizace a e-mail jsou na dvou místech → adresují se **třídou** (`.sync-state`, `.update-btn`, `.user-email`), ne `id`. Karty přepíná jakýkoli `.nav-item[data-view]`. Tlačítko Zpět přes History API (fullscreen fotka → detail → office formulář → přepne kartu).
