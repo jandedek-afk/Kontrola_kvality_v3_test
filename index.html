@@ -455,8 +455,8 @@
     .zn-pane-detail,.zn-pane-side{display:none}
     @media (min-width:1200px){
       .zn-panes{display:grid;grid-template-columns:var(--w-list) minmax(0,1fr) var(--w-side);gap:var(--sp-9);align-items:start}
-      .zn-pane-list{max-height:calc(100vh - 40px);overflow-y:auto;padding-right:2px}
-      .zn-pane-detail,.zn-pane-side{display:block;position:sticky;top:0;max-height:calc(100vh - 40px);overflow-y:auto}
+      .zn-pane-list{position:sticky;top:56px;max-height:calc(100vh - 66px);overflow-y:auto;padding-right:2px}
+      .zn-pane-detail,.zn-pane-side{display:block;position:sticky;top:56px;max-height:calc(100vh - 66px);overflow-y:auto}
       /* v úzkém sloupci se mini graf nevejde — stav nese levý pruh a max. odchylka */
       .zn-pane-list .zn-spark{display:none}
       /* 292 px je úzkých — všechny prvky karty se zmenší, ať se vejde i max. odchylka a ⋯ */
@@ -646,6 +646,67 @@
       #viewer{z-index:9999}
       #fp-reopen,#float-photo{bottom:calc(16px + 62px)}
     }
+    /* === Kontrolní výjezd: bílé karty, živý verdikt, přilepené uložení === */
+    .vy-title{color:var(--text-strong);font-size:var(--fs-body-lg);font-weight:var(--fw-bold);
+      letter-spacing:.01em;text-transform:none}
+    .vy-section.measure-group{background:var(--surface-card);border:var(--border-hair);padding:1rem 1.1rem}
+    .vy-section label{font-size:var(--fs-caps);letter-spacing:var(--ls-caps);text-transform:uppercase;
+      color:var(--text-muted);font-weight:var(--fw-bold);margin-top:var(--sp-9)}
+    .vy-section .toggle-yn{font-size:0.95rem;text-transform:none;letter-spacing:0;color:var(--text-body);
+      font-weight:var(--fw-strong)}
+    .chip.chip-over{border-color:var(--bad-700);color:var(--state-bad-text);font-weight:var(--fw-bold)}
+    /* živý verdikt rovinatosti pod sekcí měření */
+    .vy-verdict{display:flex;align-items:center;gap:var(--sp-7);flex-wrap:wrap;margin-top:var(--sp-9);
+      padding-top:var(--sp-7);border-top:var(--border-divider-hair)}
+    .vy-verdict .num{font-family:var(--font-num);font-size:var(--fs-body-lg);color:var(--text-body)}
+    .vy-verdict .num b{font-weight:var(--fw-bold);color:var(--text-strong)}
+    .vy-verdict .lim{font-size:var(--fs-meta);color:var(--text-faint)}
+    @media (max-width:640px){
+      /* Uložit záznam = přilepená lišta nad spodní navigací, plná šířka */
+      #noteForm .form-actions{position:sticky;bottom:62px;z-index:60;margin:var(--sp-9) 0 0;
+        background:var(--surface-app);padding:var(--sp-5) 0;border-top:var(--border-hair);
+        flex-direction:column;align-items:stretch;gap:var(--sp-3)}
+      #noteForm #saveBtn{width:100%;min-height:var(--hit-min);font-size:1rem}
+      #noteForm #status{margin-left:0;text-align:center}
+    }
+    /* === Office: čekající záznamy | formulář | měření a fotky === */
+    .of-panes{display:block}
+    .of-progress{display:flex;align-items:center;gap:var(--sp-7);flex-wrap:wrap;margin-bottom:var(--sp-7)}
+    .of-progress .p{font-size:var(--fs-body-sm);color:var(--text-muted);white-space:nowrap}
+    .of-progress .bar{flex:1 1 120px;min-width:80px;height:6px;background:var(--surface-sunken);
+      border-radius:var(--r-pill);overflow:hidden}
+    .of-progress .bar i{display:block;height:100%;background:var(--orange-700);border-radius:var(--r-pill)}
+    .of-side-title{display:block;font-size:var(--fs-caps);letter-spacing:var(--ls-caps);text-transform:uppercase;
+      color:var(--text-muted);margin:0 0 var(--sp-3)}
+    .of-side-card{background:var(--surface-card);border:var(--border-hair);border-radius:var(--r-4);
+      padding:var(--pad-panel);margin-bottom:var(--sp-5)}
+    /* vybraná možnost přepínače: oranžový rámeček (formulace z normy se nekrátí) */
+    .radio-set label{align-items:flex-start;line-height:var(--lh-snug)}
+    .radio-set label.checked{border-color:var(--orange-700);background:var(--orange-050)}
+    .radio-set input{margin-top:2px;flex:0 0 auto}
+    @media (min-width:1200px){
+      .of-panes{display:grid;grid-template-columns:var(--w-list) minmax(0,1fr) 300px;gap:var(--sp-9);align-items:start}
+      .of-pane-list{position:sticky;top:56px;max-height:calc(100vh - 66px);overflow-y:auto}
+      .of-pane-side{position:sticky;top:56px;max-height:calc(100vh - 66px);overflow-y:auto}
+      .of-pane-list .zn-spark{display:none}
+      .of-pane-list .zn-card{gap:var(--sp-3);padding:var(--sp-5)}
+      .of-pane-list .zn-thumb{width:40px;height:32px}
+      .of-pane-list .zn-max{width:34px;font-size:0.72rem}
+      .of-pane-list .zn-tag{width:9px;height:9px;padding:0;border-radius:50%;overflow:hidden;
+        text-indent:-99px;align-self:center;background:var(--orange-700)}
+      .of-pane-side .photos-compare{gap:var(--sp-5)}
+      /* fotky po opravě / při kontrole vedle sebe i v úzkém panelu */
+      .of-pane-side .photos-compare .pc-col{flex:1 1 0;min-width:0}
+      .of-pane-side .photos-compare .pc-title{font-size:var(--fs-micro)}
+      .of-pane-side .photos-compare .of-photo img{max-height:110px}
+    }
+    @media (max-width:1199px){
+      /* měření a fotky nad formulářem, seznam čekajících nakonec */
+      .of-panes{display:flex;flex-direction:column}
+      .of-pane-side{order:1}
+      .of-pane-form{order:2}
+      .of-pane-list{order:3;margin-top:var(--sp-12)}
+    }
   </style>
 </head>
 <body>
@@ -728,7 +789,7 @@
                   <span>📐 Rovinatost [mm]</span>
                   <button type="button" class="info-btn" id="rovinatost-info-btn" aria-label="Co znamená rovinatost" aria-expanded="false">i</button>
                 </div>
-                <div id="rovinatost-info" class="info-box" hidden>Rovinatost se měří 2m latí. Vyhovující = aspoň 75 % naměřených hodnot je do 10 mm. Nerovnost přes 20 mm (mimo rozsah klínku) zadej tlačítkem ✕ – počítá se jako nevyhovující bod.</div>
+                <div id="rovinatost-info" class="info-box" hidden>Měří se 2 m latí. Vyhovující = aspoň 75 % hodnot do 10 mm. Nerovnost přes 20 mm zadej ✕ &gt;20 — počítá se jako nevyhovující bod.</div>
                 <label>Podélné měření</label>
                 <div class="chip-row">
                   <input id="longNote" class="num-input" type="text" inputmode="decimal" enterkeyhint="done" placeholder="Číslo + mezera / Enter">
@@ -861,7 +922,7 @@
 
           <footer>
             Aplikace funguje offline. Data jsou uložena lokálně v zařízení (IndexedDB).<br>
-            <span style="color:var(--muted);font-size:0.95em;">Verze aplikace: v3.2.0-test · Build 2026-08-26·47</span>
+            <span style="color:var(--muted);font-size:0.95em;">Verze aplikace: v3.2.0-test · Build 2026-08-26·48</span>
           </footer>
         </main>
         <!-- Spodní lišta karet: mobil ≤640 px (drawer zůstává pro tablety a jako fallback) -->
@@ -1555,55 +1616,82 @@
           return `<div class="office-section">${escapeHtml(sec.title)}</div>${before}${fields}`;
         }).join('');
 
+        // vlevo seznam čekajících (stejné karty jako v Záznamech) — je vidět, kolik práce zbývá
+        const pending = entries.filter(e=> !e.officeDone);
         body.innerHTML = `
-          <div class="office-form">
-            <button type="button" class="btn-small" id="office-back" style="margin-bottom:1rem">← Zpět na seznam</button>
-
-            <div class="office-section" style="margin-top:0;padding-top:0;border-top:none">📍 Poloha opravy (z výjezdu)</div>
-            <div class="of-field">
-              ${entry.coords && entry.coords.lat ? `
-                <div style="margin-bottom:8px">Souřadnice: <strong>${escapeHtml(entry.coords.lat)}, ${escapeHtml(entry.coords.lon)}</strong>
-                  &nbsp;<a href="https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(entry.coords.lat+','+entry.coords.lon)}" target="_blank" rel="noopener" style="color:var(--brand);font-weight:600;text-decoration:none">↗ Otevřít v Google Maps</a></div>
-                <div id="office-map" style="height:280px;border-radius:10px;overflow:hidden;border:1px solid var(--line-200)"></div>
-              ` : '<div class="hint">Tento záznam nemá uloženou GPS polohu.</div>'}
+          <div class="of-panes">
+            <div class="of-pane-list">
+              <span class="of-side-title">Čeká na doplnění (${pending.length})</span>
+              ${buildEntriesList(pending, false) || '<div class="hint">Nic nečeká – vše má office část hotovou.</div>'}
             </div>
 
-            <div class="office-section">Import ze „Záznamu o opravě" (PDF)</div>
-            <div class="of-field">
-              <label>Nahraj PDF „Záznam o opravě"<span class="hint">Můžeš přidat i víc PDF (dvě opravy vedle sebe). Identifikace se vyplní z opravy s nejpozdějším datem ukončení; všechna PDF i fotky po opravě zůstanou uložené.</span></label>
-              <div class="pdf-drop" id="pdf-drop">📄 Klepni a přidej PDF (nebo přetáhni sem)</div>
-              <input type="file" id="pdf-input" accept="application/pdf" multiple style="display:none">
-              <div id="pdf-status" class="hint" style="margin-top:6px"></div>
-              <div id="repairs-list"></div>
-            </div>
-            <div class="office-section">Fotky</div>
-            <div class="photos-compare">
-              <div class="pc-col">
-                <div class="pc-title">Foto po opravě (z PDF)</div>
-                <div class="of-photo-row" id="after-photo-preview">${afterSrc?`<div class="of-photo"><img src="${afterSrc}"><div class="cap">po opravě</div></div>`:'<span class="hint">zatím nenahráno (naimportuj PDF)</span>'}</div>
+            <div class="of-pane-form">
+              <div class="office-form">
+                <button type="button" class="btn-small" id="office-back" style="margin-bottom:1rem">← Zpět na seznam</button>
+
+                <div class="of-progress">
+                  <span class="p" id="of-progress-txt">vyplněno 0 z 0 polí</span>
+                  <span class="bar"><i id="of-progress-bar" style="width:0%"></i></span>
+                </div>
+
+                <div class="office-section" style="margin-top:0;padding-top:0;border-top:none">📍 Poloha opravy (z výjezdu)</div>
+                <div class="of-field">
+                  ${entry.coords && entry.coords.lat ? `
+                    <div style="margin-bottom:8px">Souřadnice: <strong>${escapeHtml(entry.coords.lat)}, ${escapeHtml(entry.coords.lon)}</strong>
+                      &nbsp;<a href="https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(entry.coords.lat+','+entry.coords.lon)}" target="_blank" rel="noopener" style="color:var(--brand);font-weight:600;text-decoration:none">↗ Otevřít v Google Maps</a></div>
+                    <div id="office-map" style="height:280px;border-radius:10px;overflow:hidden;border:1px solid var(--line-200)"></div>
+                  ` : '<div class="hint">Tento záznam nemá uloženou GPS polohu.</div>'}
+                </div>
+
+                <div class="office-section">Import ze „Záznamu o opravě" (PDF)</div>
+                <div class="of-field">
+                  <label>Nahraj PDF „Záznam o opravě"<span class="hint">Můžeš přidat i víc PDF (dvě opravy vedle sebe). Identifikace se vyplní z opravy s nejpozdějším datem ukončení; všechna PDF i fotky po opravě zůstanou uložené.</span></label>
+                  <div class="pdf-drop" id="pdf-drop">📄 Klepni a přidej PDF (nebo přetáhni sem)</div>
+                  <input type="file" id="pdf-input" accept="application/pdf" multiple style="display:none">
+                  <div id="pdf-status" class="hint" style="margin-top:6px"></div>
+                  <div id="repairs-list"></div>
+                </div>
+
+                ${sectionsHtml}
+
+                <div class="office-actions">
+                  <button type="button" id="office-save">Uložit office část</button>
+                  <button type="button" class="btn-secondary" id="office-protocol">📄 Protokol (PDF)</button>
+                  <button type="button" class="btn-secondary" id="office-cancel">Zrušit</button>
+                  <span id="office-msg" class="hint"></span>
+                </div>
               </div>
-              <div class="pc-col">
-                <div class="pc-title">Foto při kontrole (z výjezdu)</div>
-                <div class="of-photo-row">${entry.photo?`<div class="of-photo"><img src="${entry.photo}"><div class="cap">${escapeHtml(entry.timeText||'')}</div></div>`:'<span class="hint">bez fotky</span>'}</div>
+            </div>
+
+            <div class="of-pane-side">
+              <span class="of-side-title">Měření z výjezdu</span>
+              ${measureCardHtml(entry)}
+              <div class="of-side-card" style="margin-top:8px">${rovBadge}</div>
+              <span class="of-side-title">Fotky</span>
+              <div class="of-side-card">
+                <div class="photos-compare">
+                  <div class="pc-col">
+                    <div class="pc-title">Foto po opravě (z PDF)</div>
+                    <div class="of-photo-row" id="after-photo-preview">${afterSrc?`<div class="of-photo"><img src="${afterSrc}"><div class="cap">po opravě</div></div>`:'<span class="hint">zatím nenahráno (naimportuj PDF)</span>'}</div>
+                  </div>
+                  <div class="pc-col">
+                    <div class="pc-title">Foto při kontrole (z výjezdu)</div>
+                    <div class="of-photo-row">${entry.photo?`<div class="of-photo"><img src="${entry.photo}"><div class="cap">${escapeHtml(entry.timeText||'')}</div></div>`:'<span class="hint">bez fotky</span>'}</div>
+                  </div>
+                </div>
               </div>
-            </div>
-
-            ${sectionsHtml}
-
-            <div class="office-section">Měřená rovinatost (z výjezdu, auto)</div>
-            <div class="of-field">
-              <label>Odečtené hodnoty z klínku</label>
-              <div>Podélně: ${escapeHtml(entry.longNote||'—')}<br>Příčně: ${escapeHtml(entry.crossNote||'—')}</div>
-              <div style="margin-top:8px">Vyhodnocení: ${rovBadge}</div>
-            </div>
-
-            <div class="office-actions">
-              <button type="button" id="office-save">Uložit office část</button>
-              <button type="button" class="btn-secondary" id="office-protocol">📄 Protokol (PDF)</button>
-              <button type="button" class="btn-secondary" id="office-cancel">Zrušit</button>
-              <span id="office-msg" class="hint"></span>
             </div>
           </div>`;
+
+        // klik na čekající záznam přepne formulář; ⋯ otevře nabídku akcí
+        const listEl = body.querySelector('.of-pane-list');
+        listEl.querySelectorAll('.zn-card').forEach(c=> c.classList.toggle('sel', c.dataset.id === entry.id));
+        listEl.addEventListener('click', async (ev)=>{
+          const act = ev.target.closest('[data-act]'); if(!act) return;
+          const card = ev.target.closest('[data-id]'); if(!card) return;
+          if(act.dataset.act === 'view'){ officeCurrentId = card.dataset.id; officePhotos = {}; await renderOffice(); }
+          else if(act.dataset.act === 'menu'){ ev.stopPropagation(); const e2 = await getEntryById(card.dataset.id); openActionSheet(e2 || { id: card.dataset.id }, null); }
+        });
 
         wireOfficeForm(body, entry);
         renderRepairs(body, entry, false); // vykresli nahrané opravy (bez přepisu už uložené identifikace)
@@ -1626,6 +1714,28 @@
         setTimeout(()=>{ try{ officeMapInstance.invalidateSize(); }catch(e){} }, 200);
       }
 
+      // Průběh vyplnění: počítá se z OFFICE_SCHEMA (ne natvrdo), podmíněná pole se počítají jen když se týkají
+      function officeProgressCounts(body){
+        const vals = readOfficeForm(body);
+        let total = 0, done = 0;
+        OFFICE_SCHEMA.forEach(sec=> sec.fields.forEach(f=>{
+          if(f.type === 'photo') return;
+          const inp = body.querySelector(`[data-key="${f.key}"], [name="of_${f.key}"], [data-check-key="${f.key}"]`);
+          const fld = inp ? inp.closest('.of-field') : null;
+          if(!fld || fld.hidden) return;
+          total++;
+          if(String(vals[f.key] ?? '').trim() !== '') done++;
+        }));
+        return { done, total };
+      }
+      function updateOfficeProgress(body){
+        const txt = body.querySelector('#of-progress-txt'), bar = body.querySelector('#of-progress-bar');
+        if(!txt || !bar) return;
+        const { done, total } = officeProgressCounts(body);
+        txt.textContent = `vyplněno ${done} z ${total} polí`;
+        bar.style.width = (total ? Math.round(done/total*100) : 0) + '%';
+      }
+
       function wireOfficeForm(body, entry){
         // radio: vizuální označení + podmíněné zobrazení
         function refreshConditionals(){
@@ -1643,6 +1753,11 @@
           });
         });
         refreshConditionals();
+
+        // průběh vyplnění (přepočítat při každé změně i po zobrazení/skrytí podmíněných polí)
+        updateOfficeProgress(body);
+        body.addEventListener('input', ()=> updateOfficeProgress(body));
+        body.addEventListener('change', ()=> updateOfficeProgress(body));
 
         // vysvětlivky „i" u office polí (PC = hover, mobil = klepnutí; klepnutí mimo zavře)
         const hoverOk = window.matchMedia('(hover: hover)').matches;
@@ -3238,13 +3353,20 @@
         const measureState = { long: [], cross: [] };
         const valInput = (t)=> document.getElementById(t==='long' ? 'longNote' : 'crossNote');
         function updateVerdict(){
-          document.getElementById('rovinatost-verdict').innerHTML =
-            rovinatostBadge(measureState.long.join('; '), measureState.cross.join('; '));
+          const st = rovinatostStats(measureState.long.join('; '), measureState.cross.join('; '));
+          const box = document.getElementById('rovinatost-verdict');
+          if(!st){ box.innerHTML = ''; return; }
+          const pill = st.vyhovuje
+            ? '<span class="verdict ok">✅ vyhovující</span>'
+            : '<span class="verdict bad">❌ nevyhovující</span>';
+          box.innerHTML = `<div class="vy-verdict">${pill}`
+            + `<span class="num"><b>${st.ok}</b> z <b>${st.total}</b> do ${MM_LIMIT} mm · <b>${st.pct} %</b></span>`
+            + `<span class="lim">mez ${MM_SHARE} %</span></div>`;
         }
         function renderChips(t){
           document.getElementById(t+'-chips').innerHTML = measureState[t].map((v,i)=>{
             const over = /^x$/i.test(v);
-            return `<span class="chip${over?' chip-over':''}">${over?'&gt;20 mm':escapeHtml(v)}<button type="button" class="chip-x" data-target="${t}" data-i="${i}" aria-label="Smazat">✕</button></span>`;
+            return `<span class="chip${over?' chip-over':''}">${over?'✕ &gt; 20 mm':escapeHtml(v)}<button type="button" class="chip-x" data-target="${t}" data-i="${i}" aria-label="Smazat">✕</button></span>`;
           }).join('');
           updateVerdict();
         }
