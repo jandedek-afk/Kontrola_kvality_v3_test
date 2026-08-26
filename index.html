@@ -603,6 +603,49 @@
       .ed-strip .f:nth-child(-n+2){border-top:none}
       .ed-strip .f:nth-child(odd){border-left:none}
     }
+    /* === Vodorovná tmavá navigace (trvale na ≥ 1000 px) === */
+    .topnav{display:none}
+    .botnav{display:none}
+    @media (min-width:1000px){
+      .topnav{display:flex;align-items:center;gap:var(--sp-2);position:fixed;top:0;left:0;right:0;z-index:1200;
+        height:var(--h-nav);background:var(--surface-nav);padding:0 var(--sp-9)}
+      .topnav .tn-brand{display:flex;align-items:center;gap:var(--sp-5);margin-right:var(--sp-9);flex:0 0 auto}
+      .topnav .tn-brand img{width:24px;height:24px;object-fit:contain;border-radius:var(--r-2)}
+      .topnav .tn-brand span{color:var(--text-on-dark);font-size:var(--fs-body-lg);font-weight:var(--fw-bold);
+        letter-spacing:.01em;white-space:nowrap}
+      .topnav .nav-item{width:auto;flex:0 0 auto;color:var(--text-on-dark-muted);background:transparent;
+        font-size:var(--fs-body-lg);font-weight:var(--fw-strong);padding:7px 11px;border-radius:var(--r-3);
+        white-space:nowrap;gap:var(--sp-3)}
+      .topnav .nav-item:hover{background:rgba(255,255,255,.08);color:var(--text-on-dark)}
+      .topnav .nav-item.active{background:transparent;color:var(--orange-500);box-shadow:inset 0 -2px 0 var(--orange-500)}
+      .topnav .tn-right{display:flex;align-items:center;gap:var(--sp-5);margin-left:auto;flex:0 0 auto}
+      .topnav .sync-state{color:var(--text-on-dark-muted);font-size:var(--fs-meta);white-space:nowrap;min-width:1em}
+      .topnav .tn-mail{color:var(--text-on-dark-muted);font-size:var(--fs-meta);max-width:190px;
+        overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+      .topnav .btn-small{background:rgba(255,255,255,.1);color:var(--text-on-dark);white-space:nowrap}
+      .topnav .btn-small:hover{background:rgba(255,255,255,.18)}
+      .topnav .btn-small.has-update{background:var(--state-wait-bg);color:var(--state-wait-text);font-weight:var(--fw-heavy)}
+      /* navigace je v liště → plovoucí ☰ jen jako fallback pod 1000 px */
+      .menu-toggle{display:none}
+      .main{padding-top:66px}
+    }
+    /* === Spodní lišta karet (mobil ≤ 640 px) === */
+    @media (max-width:640px){
+      .botnav{display:flex;position:fixed;left:0;right:0;bottom:0;z-index:1200;background:var(--surface-nav);
+        padding-bottom:env(safe-area-inset-bottom)}
+      .botnav .nav-item{flex:1 1 0;min-width:0;flex-direction:column;align-items:center;justify-content:center;
+        gap:2px;min-height:var(--hit-min);padding:7px 2px 8px;border-radius:0;background:transparent;
+        color:var(--text-on-dark-muted);font-size:var(--fs-micro);font-weight:var(--fw-strong)}
+      .botnav .nav-item .ico{font-size:1.15rem}
+      .botnav .nav-item .lbl{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:100%}
+      .botnav .nav-item:hover{background:transparent;color:var(--text-on-dark)}
+      .botnav .nav-item.active{background:transparent;color:var(--orange-500)}
+      /* obsah nesmí zmizet pod lištou */
+      .main{padding-bottom:calc(3rem + 62px)}
+      /* přilepená lišta detailu musí být nad spodní navigací */
+      #viewer{z-index:9999}
+      #fp-reopen,#float-photo{bottom:calc(16px + 62px)}
+    }
   </style>
 </head>
 <body>
@@ -620,6 +663,20 @@
       </div>
 
       <div class="app-shell" id="app-shell" style="display:none">
+        <!-- Vodorovná tmavá navigace: trvale na ≥1000 px (kvůli přepínání karet bez drawer) -->
+        <nav class="topnav" id="topnav">
+          <span class="tn-brand"><img src="icon2.png" alt="" onerror="this.style.display=&#39;none&#39;"><span>Kontrola kvality</span></span>
+          <button type="button" class="nav-item" data-view="vyjezd"><span class="ico">🚛</span> Výjezd</button>
+          <button type="button" class="nav-item" data-view="office"><span class="ico">🏢</span> Office</button>
+          <button type="button" class="nav-item" data-view="zaznamy"><span class="ico">📁</span> Záznamy</button>
+          <button type="button" class="nav-item" data-view="mapa"><span class="ico">🗺️</span> Mapa</button>
+          <button type="button" class="nav-item" data-view="nastaveni"><span class="ico">⚙️</span> Nastavení</button>
+          <span class="tn-right">
+            <span class="sync-state"></span>
+            <button type="button" class="btn-small update-btn" data-short="1">⟳ Aktualizovat</button>
+            <span class="tn-mail user-email"></span>
+          </span>
+        </nav>
         <aside class="sidebar" id="sidebar">
           <div class="sidebar-brand">
             <img src="icon2.png" alt="logo" onerror="this.style.display='none'">
@@ -635,8 +692,8 @@
           <div class="sidebar-foot">
             <button id="sync-now" type="button" class="btn-small">Synchronizovat</button>
             <span class="sync-state" id="sync-status"></span>
-            <button id="update-btn" type="button" class="btn-small">⟳ Aktualizovat aplikaci</button>
-            <div class="who">Přihlášen:<br><b id="user-email"></b></div>
+            <button id="update-btn" type="button" class="btn-small update-btn">⟳ Aktualizovat aplikaci</button>
+            <div class="who">Přihlášen:<br><b id="user-email" class="user-email"></b></div>
             <button id="logout-btn" type="button" class="btn-small danger">Odhlásit</button>
           </div>
         </aside>
@@ -804,9 +861,17 @@
 
           <footer>
             Aplikace funguje offline. Data jsou uložena lokálně v zařízení (IndexedDB).<br>
-            <span style="color:var(--muted);font-size:0.95em;">Verze aplikace: v3.2.0-test · Build 2026-08-26·46</span>
+            <span style="color:var(--muted);font-size:0.95em;">Verze aplikace: v3.2.0-test · Build 2026-08-26·47</span>
           </footer>
         </main>
+        <!-- Spodní lišta karet: mobil ≤640 px (drawer zůstává pro tablety a jako fallback) -->
+        <nav class="botnav" id="botnav">
+          <button type="button" class="nav-item" data-view="vyjezd"><span class="ico">🚛</span><span class="lbl">Výjezd</span></button>
+          <button type="button" class="nav-item" data-view="office"><span class="ico">🏢</span><span class="lbl">Office</span></button>
+          <button type="button" class="nav-item" data-view="zaznamy"><span class="ico">📁</span><span class="lbl">Záznamy</span></button>
+          <button type="button" class="nav-item" data-view="mapa"><span class="ico">🗺️</span><span class="lbl">Mapa</span></button>
+          <button type="button" class="nav-item" data-view="nastaveni"><span class="ico">⚙️</span><span class="lbl">Nastavení</span></button>
+        </nav>
       </div>
 
       <!-- Fullscreen fotka z detailu záznamu -->
@@ -1019,7 +1084,7 @@
         catch(e){ console.warn('shrinkPhotoDataURL selhal:', e && e.message ? e.message : e); return dataURL; }
       }
 
-      function setSyncStatus(text){ const el=document.getElementById('sync-status'); if(el) el.textContent = text; }
+      function setSyncStatus(text){ document.querySelectorAll('.sync-state').forEach(el=> el.textContent = text); }
 
       // Pomocník: časový limit i pro lokální (IndexedDB) operace, ať se nic nezasekne potichu
       function localTimeout(promise, ms, label){
@@ -1134,7 +1199,7 @@
         document.getElementById('login-overlay').style.display = 'none';
         document.getElementById('app-shell').style.display = 'flex';
         document.body.classList.add('app-mode');
-        document.getElementById('user-email').textContent = session.user.email || '';
+        document.querySelectorAll('.user-email').forEach(el=> el.textContent = session.user.email || '');
         if(heavyInitDone) return;
         heavyInitDone = true;
         await renderFoldersAndEntries();
@@ -3007,7 +3072,7 @@
 
         document.getElementById('logout-btn').addEventListener('click', async ()=>{ await sb.auth.signOut(); });
         document.getElementById('sync-now').addEventListener('click', ()=> syncNow());
-        document.getElementById('update-btn').addEventListener('click', async (e)=>{
+        document.querySelectorAll('.update-btn').forEach(b=> b.addEventListener('click', async (e)=>{
           const btn = e.currentTarget; btn.disabled = true; btn.textContent = 'Aktualizuji…';
           // Reload provedeme VŽDY, i kdyby úklid uvízl (Android/PWA občas zasekne caches/SW promisy).
           const doReload = ()=> location.replace(location.pathname + '?u=' + Date.now());
@@ -3021,7 +3086,7 @@
           // c. načtení s obejitím cache přes unikátní URL → jistota nejnovější verze
           clearTimeout(failsafe);
           doReload();
-        });
+        }));
         window.addEventListener('online', ()=> syncNow());
         window.addEventListener('offline', ()=> setSyncStatus('● offline'));
 
@@ -3446,7 +3511,7 @@
             reg.update().catch(()=>{}); // při načtení zkontroluj, jestli není novější SW
 
             // Zvýrazni tlačítko „Aktualizovat", když je stažená nová verze
-            const markUpdate = ()=>{ const b=document.getElementById('update-btn'); if(b){ b.classList.add('has-update'); b.textContent='⟳ Nová verze – aktualizovat'; } };
+            const markUpdate = ()=> document.querySelectorAll('.update-btn').forEach(b=>{ b.classList.add('has-update'); b.textContent = b.dataset.short ? '⟳ Nová verze' : '⟳ Nová verze – aktualizovat'; });
             reg.addEventListener('updatefound', ()=>{
               const nw = reg.installing; if(!nw) return;
               nw.addEventListener('statechange', ()=>{ if(nw.state === 'installed' && navigator.serviceWorker.controller) markUpdate(); });
