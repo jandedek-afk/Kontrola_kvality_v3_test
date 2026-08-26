@@ -568,7 +568,7 @@
 
           <footer>
             Aplikace funguje offline. Data jsou uložena lokálně v zařízení (IndexedDB).<br>
-            <span style="color:var(--muted);font-size:0.95em;">Verze aplikace: v3.2.0-test · Build 2026-08-18·43</span>
+            <span style="color:var(--muted);font-size:0.95em;">Verze aplikace: v3.2.0-test · Build 2026-08-26·44</span>
           </footer>
         </main>
       </div>
@@ -1096,6 +1096,7 @@
 
       let officeCurrentId = null;      // právě upravovaný záznam
       let officePhotos = {};           // dočasné base64 fotky (vyvrt_foto, dokumentace, foto po opravě)
+      let officeMapInstance = null;    // mini mapa v office formuláři (poloha opravy)
 
       function escAttr(s){ return escapeHtml(s).replaceAll("'","&#39;"); }
       function todayISODate(){ const d=new Date(); const p=n=>String(n).padStart(2,'0'); return `${d.getFullYear()}-${p(d.getMonth()+1)}-${p(d.getDate())}`; }
@@ -1252,7 +1253,16 @@
           <div class="office-form">
             <button type="button" class="btn-small" id="office-back" style="margin-bottom:1rem">← Zpět na seznam</button>
 
-            <div class="office-section" style="margin-top:0;padding-top:0;border-top:none">Import ze „Záznamu o opravě" (PDF)</div>
+            <div class="office-section" style="margin-top:0;padding-top:0;border-top:none">📍 Poloha opravy (z výjezdu)</div>
+            <div class="of-field">
+              ${entry.coords && entry.coords.lat ? `
+                <div style="margin-bottom:8px">Souřadnice: <strong>${escapeHtml(entry.coords.lat)}, ${escapeHtml(entry.coords.lon)}</strong>
+                  &nbsp;<a href="https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(entry.coords.lat+','+entry.coords.lon)}" target="_blank" rel="noopener" style="color:var(--brand);font-weight:600;text-decoration:none">↗ Otevřít v Google Maps</a></div>
+                <div id="office-map" style="height:280px;border-radius:10px;overflow:hidden;border:1px solid #e2e6ee"></div>
+              ` : '<div class="hint">Tento záznam nemá uloženou GPS polohu.</div>'}
+            </div>
+
+            <div class="office-section">Import ze „Záznamu o opravě" (PDF)</div>
             <div class="of-field">
               <label>Nahraj PDF „Záznam o opravě"<span class="hint">Můžeš přidat i víc PDF (dvě opravy vedle sebe). Identifikace se vyplní z opravy s nejpozdějším datem ukončení; všechna PDF i fotky po opravě zůstanou uložené.</span></label>
               <div class="pdf-drop" id="pdf-drop">📄 Klepni a přidej PDF (nebo přetáhni sem)</div>
@@ -1292,6 +1302,22 @@
         wireOfficeForm(body, entry);
         renderRepairs(body, entry, false); // vykresli nahrané opravy (bez přepisu už uložené identifikace)
         showFloatPhoto(entry.photo, entry.afterPhoto); // plovoucí foto (při kontrole + po opravě) pro vizuální posouzení
+        initOfficeMap(entry); // mini mapa s polohou opravy (pomůže najít správné PDF)
+      }
+
+      // Mini mapa v office formuláři – ukáže, kde oprava je (identifikace pro nahrání PDF)
+      function initOfficeMap(entry){
+        if(officeMapInstance){ try{ officeMapInstance.remove(); }catch(e){} officeMapInstance = null; }
+        if(!entry.coords || !entry.coords.lat) return;
+        const el = document.getElementById('office-map');
+        if(!el) return;
+        const lat = parseFloat(entry.coords.lat), lon = parseFloat(entry.coords.lon);
+        if(isNaN(lat) || isNaN(lon)) return;
+        officeMapInstance = L.map('office-map').setView([lat, lon], 16);
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19 }).addTo(officeMapInstance);
+        L.marker([lat, lon]).addTo(officeMapInstance);
+        // po vykreslení do DOM přepočítat velikost (jinak se dlaždice někdy nenačtou celé)
+        setTimeout(()=>{ try{ officeMapInstance.invalidateSize(); }catch(e){} }, 200);
       }
 
       function wireOfficeForm(body, entry){
