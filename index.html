@@ -170,6 +170,23 @@
     .as-btn:hover{background:var(--surface-200)}
     .as-btn.danger{color:var(--state-bad-text)}
     .as-cancel{text-align:center;color:var(--ink-500);margin-top:4px;border-top:1px solid var(--line-100)}
+    /* Dialog „Upravit údaje z výjezdu" */
+    .ee-overlay{position:fixed;inset:0;z-index:9800;background:rgba(0,0,0,0.45);display:flex;align-items:center;justify-content:center;padding:12px}
+    .ee-overlay[hidden]{display:none}
+    .ee-box{background:var(--surface-app);border-radius:14px;width:580px;max-width:96vw;max-height:92vh;display:flex;flex-direction:column;box-shadow:0 12px 40px rgba(0,0,0,0.3)}
+    .ee-head{display:flex;align-items:center;gap:10px;padding:12px 14px;background:#fff;border-bottom:1px solid var(--line-200);border-radius:14px 14px 0 0}
+    .ee-head .t{font-weight:700;color:var(--text-strong)}
+    .ee-head .s{font-family:var(--font-num);font-size:0.82rem;color:var(--ink-500)}
+    .ee-x{margin-left:auto;background:var(--surface-200);border:none;border-radius:50%;width:30px;height:30px;cursor:pointer;color:var(--ink-600);flex:0 0 auto}
+    .ee-body{padding:12px;overflow-y:auto}
+    .ee-body .vy-section{margin-bottom:10px}
+    .ee-body textarea{width:100%}
+    .ee-foot{display:flex;align-items:center;gap:8px;padding:10px 14px;background:#fff;border-top:1px solid var(--line-200);border-radius:0 0 14px 14px;flex-wrap:wrap}
+    .ee-foot .hint{margin-right:auto;color:var(--muted);font-size:0.82rem}
+    .ee-foot button{min-height:40px;padding:0 16px;border:none;border-radius:8px;cursor:pointer;font-size:0.92rem;font-weight:600}
+    .ee-foot .btn-primary{background:var(--action-primary);color:var(--action-primary-text)}
+    .ee-photo img{width:140px;height:105px;object-fit:cover;border-radius:8px;border:1px solid var(--line-200)}
+    .of-side-title.with-act{display:flex;align-items:center;justify-content:space-between;gap:8px}
     /* Tabulka záznamů (zarovnané sloupce) */
     .zn-table-wrap{overflow:auto;max-height:80vh;background:var(--surface-card);border-radius:var(--r-5);border:var(--border-hair)}
     .zn-table{width:100%;border-collapse:collapse;font-size:0.84rem}
@@ -922,7 +939,7 @@
 
           <footer>
             Aplikace funguje offline. Data jsou uložena lokálně v zařízení (IndexedDB).<br>
-            <span style="color:var(--muted);font-size:0.95em;">Verze aplikace: v3.2.0-test · Build 2026-08-26·49</span>
+            <span style="color:var(--muted);font-size:0.95em;">Verze aplikace: v3.2.0-test · Build 2026-08-26·50</span>
           </footer>
         </main>
         <!-- Spodní lišta karet: mobil ≤640 px (drawer zůstává pro tablety a jako fallback) -->
@@ -971,9 +988,27 @@
           <div class="as-title" id="as-title">Akce</div>
           <button type="button" class="as-btn" data-as="view">👁️ Zobrazit</button>
           <button type="button" class="as-btn" data-as="download">⬇️ Stáhnout foto</button>
+          <button type="button" class="as-btn" data-as="edit">✏️ Upravit údaje z výjezdu</button>
           <button type="button" class="as-btn" data-as="move">📁 Přesunout</button>
           <button type="button" class="as-btn danger" data-as="delete">🗑️ Smazat</button>
           <button type="button" class="as-btn as-cancel" data-as="cancel">Zavřít</button>
+        </div>
+      </div>
+
+      <!-- Úprava údajů z výjezdu (rovinatost, jména, kolej, poznámka, foto, datum) -->
+      <div id="edit-entry" class="ee-overlay" hidden>
+        <div class="ee-box" role="dialog" aria-modal="true" aria-label="Upravit údaje z výjezdu">
+          <div class="ee-head">
+            <span class="t">✏️ Upravit údaje z výjezdu</span>
+            <span class="s" id="ee-sub"></span>
+            <button type="button" class="ee-x" id="ee-close" aria-label="Zavřít">✕</button>
+          </div>
+          <div class="ee-body" id="ee-body"></div>
+          <div class="ee-foot">
+            <span class="hint" id="ee-msg"></span>
+            <button type="button" class="btn-secondary" id="ee-cancel">Zrušit</button>
+            <button type="button" class="btn-primary" id="ee-save">Uložit změny</button>
+          </div>
         </div>
       </div>
 
@@ -1276,6 +1311,7 @@
       // --- Přepínání karet (views) + historie pro tlačítko Zpět ---
       let currentView = 'vyjezd';
       let viewerCloseFn = null;   // funkce pro zavření detailu (nastaví se při otevření)
+      let viewerRepaint = null;   // překreslení otevřeného detailu z DB (po úpravě záznamu)
       function applyView(view){
         currentView = view;
         document.querySelectorAll('.view').forEach(v=> v.classList.toggle('active', v.id === 'view-'+view));
@@ -1298,6 +1334,11 @@
       }
       // Zpět (mobilní/prohlížeč): nejdřív zavři modály, pak přepni kartu – nevyskakuj z appky
       function handlePop(e){
+        // Dialog úpravy výjezdu je nejvýš. Po uložení / zavření křížkem se zavírá z kódu
+        // a krok v historii se ubírá programově → ten jeden popstate se musí ignorovat.
+        if(eePopIgnore){ eePopIgnore = false; return; }
+        const eeBox = document.getElementById('edit-entry');
+        if(eeBox && !eeBox.hidden){ closeEditEntry(); return; }
         const imgFull = document.getElementById('img-full');
         if(imgFull && !imgFull.hidden){ closeImageFull(); return; }
         const viewer = document.getElementById('viewer');
@@ -1660,9 +1701,10 @@
             </div>
 
             <div class="of-pane-side">
-              <span class="of-side-title">Měření z výjezdu</span>
+              <span class="of-side-title with-act">Měření z výjezdu
+                <button type="button" class="btn-small" id="of-edit-meas">✏️ Upravit</button></span>
               ${measureCardHtml(entry)}
-              <div class="of-side-card" style="margin-top:8px">${rovBadge}</div>
+              <div class="of-side-card" id="of-rov-badge" style="margin-top:8px">${rovBadge}</div>
               <span class="of-side-title">Fotky</span>
               <div class="of-side-card">
                 <div class="photos-compare">
@@ -1688,6 +1730,9 @@
           if(act.dataset.act === 'view'){ officeCurrentId = card.dataset.id; officePhotos = {}; await renderOffice(); }
           else if(act.dataset.act === 'menu'){ ev.stopPropagation(); const e2 = await getEntryById(card.dataset.id); openActionSheet(e2 || { id: card.dataset.id }, null); }
         });
+
+        const editMeasBtn = body.querySelector('#of-edit-meas');
+        if(editMeasBtn) editMeasBtn.addEventListener('click', ()=> openEditEntry(entry.id, { folder: null }));
 
         wireOfficeForm(body, entry);
         renderRepairs(body, entry, false); // vykresli nahrané opravy (bez přepisu už uložené identifikace)
@@ -2406,7 +2451,7 @@
             <div class="ed-h1">
               <span class="ed-time">${escapeHtml(entry.timeText||'')}</span>
               ${entry.folder?`<span class="ed-folder">${escapeHtml(entry.folder)}</span>`:''}
-              <span class="ed-acts">${prim}<button type="button" class="ed-more" data-ed="menu" aria-label="Další akce">⋯</button></span>
+              <span class="ed-acts">${prim}<button type="button" class="btn-small" data-ed="edit" title="Upravit údaje z výjezdu">✏️ Upravit</button><button type="button" class="ed-more" data-ed="menu" aria-label="Další akce">⋯</button></span>
             </div>
             <div class="ed-sub">${escapeHtml(entry.inspectors||'bez jmen')} · ${idCev}</div>
             <div class="ed-nums">
@@ -2469,6 +2514,7 @@
             case 'full': openImageFull(el.dataset.img === 'after' ? edAfterPhoto(entry) : entry.photo); break;
             case 'office': if(ctx.beforeLeave) ctx.beforeLeave(); openOfficeForm(entry.id); break;
             case 'menu': openActionSheet(entry, ctx.folder || null); break;
+            case 'edit': await openEditEntry(entry.id, { folder: ctx.folder || null }); break;
             case 'protokol': await edProtokol(entry); break;
             case 'pdf': {
               const i = +el.dataset.idx;
@@ -2496,6 +2542,245 @@
       function closeImageFull(){
         const box = document.getElementById('img-full');
         if(box){ box.hidden = true; box.querySelector('img').src = ''; }
+      }
+
+      // ===== Úprava údajů z výjezdu (opravy po importu / překlepy) =====
+      // Otevírá se z nabídky ⋯, z hlavičky detailu i z Office (karta „Měření z výjezdu").
+      // Mění jen terénní část záznamu; office data zůstávají (jen se přepočítá auto verdikt rovinatosti).
+      let eeState = null;        // { id, long:[], cross:[], names:[], photo:'', folder }
+      let eePopIgnore = false;   // programové zavření dialogu → jeden popstate ignoruj (viz handlePop)
+
+      function eeSplit(str){ return String(str||'').split(/[;\n]+/).map(s=>s.trim()).filter(s=>s!==''); }
+      // hodnota pro <input type="datetime-local"> z timestampu (lokální čas)
+      function eeDateTimeValue(ts){
+        const d = new Date(ts); if(isNaN(d)) return '';
+        const p = n => String(n).padStart(2,'0');
+        return `${d.getFullYear()}-${p(d.getMonth()+1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`;
+      }
+
+      async function openEditEntry(id, ctx){
+        const entry = await getEntryById(id);
+        if(!entry){ alert('Záznam nenalezen.'); return; }
+        eeState = {
+          id,
+          long: eeSplit(entry.longNote),
+          cross: eeSplit(entry.crossNote),
+          names: (entry.inspectors||'').split(',').map(x=>x.trim()).filter(Boolean),
+          photo: '',                                   // nová fotka (base64); '' = nechat původní
+          folder: (ctx && ctx.folder) || null,
+        };
+        const box = document.getElementById('edit-entry');
+        document.getElementById('ee-sub').textContent =
+          `${entry.timeText||''}${entry.folder?(' · '+entry.folder):''}`;
+        document.getElementById('ee-msg').textContent = '';
+        document.getElementById('ee-body').innerHTML = eeBodyHtml(entry);
+        box.hidden = false;
+        eeWire(entry);
+        box.onclick = (ev)=>{ if(ev.target === box) dismissEditEntry(); };  // klik na pozadí
+        document.getElementById('ee-close').onclick = dismissEditEntry;
+        document.getElementById('ee-cancel').onclick = dismissEditEntry;
+        document.getElementById('ee-save').onclick = saveEditEntry;
+        history.pushState({modal:'editentry'}, '');
+      }
+
+      function eeBodyHtml(entry){
+        const mrow = (t, label)=> `<label>${label}</label>
+            <div class="chip-row">
+              <input id="ee-${t}" class="num-input" type="text" inputmode="decimal" enterkeyhint="done" placeholder="Číslo + mezera / Enter">
+              <button type="button" class="btn-small ee-add" data-target="${t}">+ Přidat</button>
+              <button type="button" class="btn-small add-x ee-add-x" data-target="${t}" title="Nerovnost přes 20 mm (mimo rozsah klínku)">✕ &gt;20</button>
+              <button type="button" class="btn-small ee-clear" data-target="${t}" title="Smazat všechny hodnoty">🗑 Vše</button>
+            </div>
+            <div id="ee-${t}-chips" class="chips"></div>`;
+        return `
+          <div class="vy-section">
+            <div class="vy-title">👷 Kontrolu provádí</div>
+            <div id="ee-names"></div>
+          </div>
+          <div class="vy-section measure-group">
+            <div class="vy-title">📐 Rovinatost [mm]</div>
+            ${mrow('long', 'Podélné měření')}
+            ${mrow('cross', 'Příčné měření')}
+            <div id="ee-verdict" class="verdict-box"></div>
+          </div>
+          <div class="vy-section">
+            <div class="vy-title">🛞 Vyjetá kolej</div>
+            <label class="toggle-yn"><input type="checkbox" id="ee-kolej" ${entry.vyjetaKolej?'checked':''}> <span>Vyjetá kolej je přítomná</span></label>
+          </div>
+          <div class="vy-section">
+            <div class="vy-title">📝 Poznámka z výjezdu</div>
+            <textarea id="ee-note" style="margin-top:0" placeholder="Doplňující poznámka…">${escapeHtml(entry.note||'')}</textarea>
+          </div>
+          <div class="vy-section">
+            <div class="vy-title">🕓 Datum a čas kontroly</div>
+            <input id="ee-time" class="num-input" type="datetime-local" value="${eeDateTimeValue(entry.time)}">
+            <label class="toggle-yn" style="margin-top:10px"><input type="checkbox" id="ee-refolder"> <span>Přesunout i do složky podle data (RRRR_MM_DD)</span></label>
+          </div>
+          <div class="vy-section">
+            <div class="vy-title">📷 Foto při kontrole</div>
+            <div class="ee-photo" id="ee-photo">${entry.photo?`<img src="${entry.photo}" alt="foto z výjezdu">`:'<span class="hint">bez fotky</span>'}</div>
+            <div class="chip-row">
+              <button type="button" class="btn-small" id="ee-photo-btn">📷 Vyměnit foto</button>
+              <input id="ee-photo-input" type="file" accept="image/*" style="display:none">
+            </div>
+          </div>`;
+      }
+
+      // Zadávání hodnot je stejné jako ve výjezdu: mezera / středník / Enter / opuštění pole potvrdí číslo.
+      function eeWire(entry){
+        const body = document.getElementById('ee-body');
+        const msg = document.getElementById('ee-msg');
+        buildNamesPicker(body.querySelector('#ee-names'), eeState.names, sel=>{ eeState.names = sel; });
+        const valInput = t => body.querySelector('#ee-' + t);
+        const commit = (t, raw)=>{
+          raw = (raw||'').trim();
+          if(raw === '') return false;
+          if(/^x$/i.test(raw)){ eeState[t].push('x'); return true; }   // přesah přes klínek (> 20 mm)
+          if(isNaN(parseFloat(raw.replace(',', '.')))) return false;
+          eeState[t].push(raw);
+          return true;
+        };
+        const renderChips = (t)=>{
+          body.querySelector('#ee-' + t + '-chips').innerHTML = eeState[t].map((v,i)=>{
+            const over = /^x$/i.test(v);
+            return `<span class="chip${over?' chip-over':''}">${over?'✕ &gt; 20 mm':escapeHtml(v)}`
+              + `<button type="button" class="chip-x" data-target="${t}" data-i="${i}" aria-label="Smazat">✕</button></span>`;
+          }).join('');
+          const st = rovinatostStats(eeState.long.join('; '), eeState.cross.join('; '));
+          body.querySelector('#ee-verdict').innerHTML = !st ? '' : `<div class="vy-verdict">`
+            + (st.vyhovuje ? '<span class="verdict ok">✅ vyhovující</span>' : '<span class="verdict bad">❌ nevyhovující</span>')
+            + `<span class="num"><b>${st.ok}</b> z <b>${st.total}</b> do ${MM_LIMIT} mm · <b>${st.pct} %</b></span>`
+            + `<span class="lim">mez ${MM_SHARE} %</span></div>`;
+        };
+        ['long','cross'].forEach(t=>{
+          const el = valInput(t);
+          el.addEventListener('keydown', e=>{ if(e.key === 'Enter'){ e.preventDefault(); if(commit(t, el.value)){ el.value=''; renderChips(t); } } });
+          el.addEventListener('input', ()=>{
+            if(/[\s;]/.test(el.value)){
+              const parts = el.value.split(/[\s;]+/);
+              const rem = parts.pop();
+              let changed = false;
+              parts.forEach(x=>{ if(commit(t, x)) changed = true; });
+              el.value = rem;
+              if(changed) renderChips(t);
+            }
+          });
+          el.addEventListener('blur', ()=>{ if(commit(t, el.value)){ el.value=''; renderChips(t); } });
+          body.querySelector('#ee-' + t + '-chips').addEventListener('click', e=>{
+            const x = e.target.closest('.chip-x'); if(!x) return;
+            eeState[x.dataset.target].splice(+x.dataset.i, 1);
+            renderChips(x.dataset.target);
+          });
+          renderChips(t);
+        });
+        body.querySelectorAll('.ee-add').forEach(b=> b.addEventListener('click', ()=>{
+          const t = b.dataset.target, el = valInput(t);
+          if(commit(t, el.value)){ el.value=''; el.focus(); renderChips(t); }
+        }));
+        body.querySelectorAll('.ee-add-x').forEach(b=> b.addEventListener('click', ()=>{
+          const t = b.dataset.target; eeState[t].push('x'); renderChips(t); valInput(t).focus();
+        }));
+        body.querySelectorAll('.ee-clear').forEach(b=> b.addEventListener('click', ()=>{
+          const t = b.dataset.target;
+          if(!eeState[t].length || confirm('Smazat všechny zadané hodnoty?')){ eeState[t] = []; valInput(t).value=''; renderChips(t); }
+        }));
+        // výměna fotky – stejná komprese jako při výjezdu
+        const pInput = body.querySelector('#ee-photo-input');
+        body.querySelector('#ee-photo-btn').addEventListener('click', ()=> pInput.click());
+        pInput.addEventListener('change', async ()=>{
+          const f = pInput.files && pInput.files[0]; if(!f) return;
+          msg.textContent = 'Zpracovávám fotku…';
+          try{
+            eeState.photo = await compressImage(f);
+            body.querySelector('#ee-photo').innerHTML = `<img src="${eeState.photo}" alt="nová fotka">`;
+            msg.textContent = 'Nová fotka připravena – ulož změny.';
+          }catch(err){ console.error('foto:', err); msg.textContent = '✕ Fotku nešlo zpracovat.'; }
+        });
+      }
+
+      // Zavření z kódu (uložení / Zrušit / křížek) – ubere krok v historii, ale nezavře modály pod sebou
+      function dismissEditEntry(){
+        const box = document.getElementById('edit-entry');
+        if(!box || box.hidden) return;
+        closeEditEntry();
+        eePopIgnore = true;
+        history.back();
+      }
+      function closeEditEntry(){
+        const box = document.getElementById('edit-entry');
+        if(box){ box.hidden = true; box.onclick = null; }
+        eeState = null;
+      }
+
+      async function saveEditEntry(){
+        if(!eeState) return;
+        const body = document.getElementById('ee-body');
+        const msg = document.getElementById('ee-msg');
+        const entry = await getEntryById(eeState.id);
+        if(!entry){ alert('Záznam nenalezen.'); dismissEditEntry(); return; }
+        // dotáhni i rozepsané číslo, které uživatel nepotvrdil (blur nemusí přijít)
+        ['long','cross'].forEach(t=>{
+          const el = body.querySelector('#ee-' + t);
+          const raw = ((el && el.value) || '').trim();
+          if(raw === '') return;
+          if(/^x$/i.test(raw)) eeState[t].push('x');
+          else if(!isNaN(parseFloat(raw.replace(',', '.')))) eeState[t].push(raw);
+        });
+        entry.longNote = eeState.long.join('; ');
+        entry.crossNote = eeState.cross.join('; ');
+        entry.inspectors = eeState.names.join(', ');
+        entry.vyjetaKolej = body.querySelector('#ee-kolej').checked;
+        entry.note = body.querySelector('#ee-note').value.trim();
+        const tv = body.querySelector('#ee-time').value;
+        if(tv){
+          const ts = new Date(tv).getTime();
+          if(!isNaN(ts)){
+            entry.time = ts;
+            entry.timeText = formatDate(ts);
+            if(body.querySelector('#ee-refolder').checked) entry.folder = dateFolderName(ts);
+          }
+        }
+        if(eeState.photo) entry.photo = eeState.photo;
+        // office část si drží automatický verdikt rovinatosti → přepočítej, ať tam nezůstane starý
+        if(entry.office) entry.office.rovinatost_verdikt = rovinatostVerdiktText(entry.longNote, entry.crossNote);
+        entry.synced = false;
+        msg.textContent = 'Ukládám…';
+        await updateEntry(entry);
+        if(navigator.onLine) pushEntry(entry).then(ok=> setSyncStatus(ok ? '✓ uloženo do cloudu' : '⏳ uloženo lokálně, čeká na sync'));
+        else setSyncStatus('● offline – uloženo lokálně');
+        const folder = eeState.folder;
+        dismissEditEntry();
+        await refreshAfterEntryEdit(entry, folder);
+      }
+
+      // Překresli místa, kde je záznam vidět. V Office se mění jen karta měření a odznáček verdiktu,
+      // ať se nezahodí rozepsaný formulář.
+      async function refreshAfterEntryEdit(entry, folder){
+        if(currentView === 'zaznamy'){
+          await renderFoldersAndEntries(folder != null ? folder : znFolderShown);
+          if(isWidePanes() && detailId === entry.id) await renderDetailPane();
+        }
+        if(viewerRepaint) await viewerRepaint();
+        const side = document.querySelector('#view-office .of-pane-side');
+        if(side && officeCurrentId === entry.id){
+          const mc = side.querySelector('.mc');
+          if(mc) mc.outerHTML = measureCardHtml(entry);
+          const badge = document.getElementById('of-rov-badge');
+          if(badge) badge.innerHTML = rovinatostBadge(entry.longNote, entry.crossNote) || '<span class="verdict">nezměřeno</span>';
+        }
+        // karta záznamu v levém seznamu Office („Čeká na doplnění")
+        const ofList = document.querySelector('#view-office .of-pane-list .zn-list');
+        if(ofList){
+          const card = ofList.querySelector('.zn-card[data-id="' + entry.id + '"]');
+          if(card){
+            const wasSel = card.classList.contains('sel');
+            card.outerHTML = buildEntryCard(entry, false);
+            if(wasSel){
+              const nc = ofList.querySelector('.zn-card[data-id="' + entry.id + '"]');
+              if(nc) nc.classList.add('sel');
+            }
+          }
+        }
       }
 
       // --- Panel s detailem (web ≥ 1200 px) ---
@@ -3055,9 +3340,8 @@
 
       // Detail na mobilu / úzkém webu: stejné bloky jako v panelu, přes celou obrazovku
       async function viewFull(id){
-        const entry = await getEntryById(id); if(!entry){ alert('Záznam nenalezen'); return; }
+        let entry = await getEntryById(id); if(!entry){ alert('Záznam nenalezen'); return; }
         const viewer = document.getElementById('viewer'), body = document.getElementById('viewer-body');
-        body.innerHTML = buildEntryDetailHtml(entry) + buildEntrySideHtml(entry, false) + buildEntryBarHtml(entry);
         viewer.setAttribute('aria-hidden','false'); viewer.style.display='flex'; document.documentElement.style.overflow='hidden';
 
         const editMapContainer = document.getElementById('edit-map-container');
@@ -3070,6 +3354,7 @@
           document.documentElement.style.overflow = '';
           editMapContainer.style.display = 'none';
           if(editMap){ editMap.remove(); editMap = null; marker = null; }
+          viewerRepaint = null;
         };
         // přesun kontrolního bodu (mapa je součástí #viewer)
         const openEditMap = ()=>{
@@ -3101,7 +3386,13 @@
           alert('Souřadnice aktualizovány.');
         };
 
-        wireEntryDetail(body, entry, { folder: znFolderShown, beforeLeave: closeViewer, onEditCoords: openEditMap });
+        // Vykreslení detailu je v `paint`, ať se dá po úpravě záznamu překreslit bez zavření okna.
+        const paint = ()=>{
+          body.innerHTML = buildEntryDetailHtml(entry) + buildEntrySideHtml(entry, false) + buildEntryBarHtml(entry);
+          wireEntryDetail(body, entry, { folder: znFolderShown, beforeLeave: closeViewer, onEditCoords: openEditMap });
+        };
+        paint();
+        viewerRepaint = async ()=>{ const e2 = await getEntryById(id); if(e2){ entry = e2; paint(); } };
         document.getElementById('viewer-close').onclick = ()=> history.back();
         document.getElementById('viewer-backdrop').onclick = ()=> history.back();
 
@@ -3519,6 +3810,7 @@
           closeActionSheet();
           if(a === 'view') openEntryDetail(e.id);
           else if(a === 'download') downloadPhoto(e.photo, e.id);
+          else if(a === 'edit') openEditEntry(e.id, { folder });
           else if(a === 'move') moveEntryPrompt(e.id, folder);
           else if(a === 'delete'){ if(confirm('Opravdu smazat tento záznam?')){ await deleteEntryFully(e.id); selectedIds.delete(e.id); if(detailId === e.id) detailId = null; if(viewerCloseFn && document.getElementById('viewer').getAttribute('aria-hidden') === 'false') history.back(); await renderFoldersAndEntries(folder); } }
         });
