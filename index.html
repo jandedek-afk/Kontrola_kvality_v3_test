@@ -256,6 +256,10 @@
     .user-popover .who-email b{color:var(--ink-900);word-break:break-all}
     .badge-unsynced{display:inline-block;background:#fff3cd;color:#8a6d00;border-radius:6px;padding:1px 6px;font-size:0.75rem;margin-left:6px}
     #update-btn.has-update{background:#fff3cd;color:#8a6d00;font-weight:700}
+    /* Kolik záznamů leží jen v zařízení a čeká na odeslání (lišta i šuplík) */
+    .sync-pending{background:var(--state-wait-bg);color:var(--state-wait-text);font-size:var(--fs-meta);
+      font-weight:var(--fw-bold);border-radius:var(--r-pill);padding:2px 9px;white-space:nowrap}
+    .sync-pending[hidden]{display:none}
     /* --- Rozvržení: postranní panel + hlavní obsah --- */
     body.app-mode{max-width:none;margin:0;padding:0;background:var(--surface-app);overflow-x:hidden}
     .app-shell{display:flex;min-height:100vh}
@@ -644,9 +648,17 @@
       .topnav .btn-small{background:rgba(255,255,255,.1);color:var(--text-on-dark);white-space:nowrap}
       .topnav .btn-small:hover{background:rgba(255,255,255,.18)}
       .topnav .btn-small.has-update{background:var(--state-wait-bg);color:var(--state-wait-text);font-weight:var(--fw-heavy)}
+      /* dlouhá hlášení nesmí rozhodit lištu – zkrátí se, celý text je v tooltipu */
+      .topnav .sync-state{max-width:240px;overflow:hidden;text-overflow:ellipsis}
       /* navigace je v liště → plovoucí ☰ jen jako fallback pod 1000 px */
       .menu-toggle{display:none}
       .main{padding-top:66px}
+    }
+    /* 1000–1279 px: v liště je málo místa → jen ikona synchronizace, krátký odznaček, bez e-mailu */
+    @media (min-width:1000px) and (max-width:1279px){
+      .topnav .sync-btn .lbl,.topnav .sync-pending .lbl,.topnav .tn-mail{display:none}
+      .topnav .nav-item{padding:7px 8px}
+      .topnav .sync-state{max-width:170px}
     }
     /* === Spodní lišta karet (mobil ≤ 640 px) === */
     @media (max-width:640px){
@@ -780,7 +792,9 @@
           <button type="button" class="nav-item" data-view="mapa"><span class="ico">🗺️</span> Mapa</button>
           <button type="button" class="nav-item" data-view="nastaveni"><span class="ico">⚙️</span> Nastavení</button>
           <span class="tn-right">
+            <span class="sync-pending" hidden></span>
             <span class="sync-state"></span>
+            <button type="button" class="btn-small sync-btn" title="Synchronizovat s cloudem">⟳<span class="lbl"> Synchronizovat</span></button>
             <button type="button" class="btn-small update-btn" data-short="1">⟳ Aktualizovat</button>
             <span class="tn-mail user-email"></span>
           </span>
@@ -798,8 +812,9 @@
             <button type="button" class="nav-item" data-view="nastaveni" style="margin-top:auto"><span class="ico">⚙️</span> Nastavení</button>
           </nav>
           <div class="sidebar-foot">
-            <button id="sync-now" type="button" class="btn-small">Synchronizovat</button>
+            <button id="sync-now" type="button" class="btn-small sync-btn">Synchronizovat</button>
             <span class="sync-state" id="sync-status"></span>
+            <span class="sync-pending" hidden></span>
             <button id="update-btn" type="button" class="btn-small update-btn">⟳ Aktualizovat aplikaci</button>
             <div class="who">Přihlášen:<br><b id="user-email" class="user-email"></b></div>
             <button id="logout-btn" type="button" class="btn-small danger">Odhlásit</button>
@@ -969,7 +984,7 @@
 
           <footer>
             Aplikace funguje offline. Data jsou uložena lokálně v zařízení (IndexedDB).<br>
-            <span style="color:var(--muted);font-size:0.95em;">Verze aplikace: v3.2.0-test · Build 2026-08-26·51</span>
+            <span style="color:var(--muted);font-size:0.95em;">Verze aplikace: v3.2.0-test · Build 2026-09-01·52</span>
           </footer>
         </main>
         <!-- Spodní lišta karet: mobil ≤640 px (drawer zůstává pro tablety a jako fallback) -->
@@ -1210,7 +1225,18 @@
         catch(e){ console.warn('shrinkPhotoDataURL selhal:', e && e.message ? e.message : e); return dataURL; }
       }
 
-      function setSyncStatus(text){ document.querySelectorAll('.sync-state').forEach(el=> el.textContent = text); }
+      function setSyncStatus(text){
+        document.querySelectorAll('.sync-state').forEach(el=>{ el.textContent = text; el.title = text; });
+      }
+      // Odznáček „⏳ N čeká na odeslání" – hned je vidět, že něco leží jen v zařízení
+      function setPendingCount(n){
+        document.querySelectorAll('.sync-pending').forEach(el=>{
+          el.hidden = !n;
+          el.innerHTML = n ? `⏳ ${n}<span class="lbl"> čeká na odeslání</span>` : '';
+          el.title = n ? 'Záznamy uložené jen v tomto zařízení – klepni na Synchronizovat' : '';
+        });
+      }
+      function updatePendingFrom(entries){ setPendingCount(entries.filter(e=> !e.synced).length); }
 
       // Pomocník: časový limit i pro lokální (IndexedDB) operace, ať se nic nezasekne potichu
       function localTimeout(promise, ms, label){
@@ -1250,8 +1276,13 @@
       async function pushUnsynced(){
         const local = await localTimeout(getAllEntries(), 8000, 'čtení lokální DB');
         const pending = local.filter(e => !e.synced);
-        let ok = 0;
-        for(const e of pending){ if(await pushEntry(e)) ok++; }
+        let ok = 0, i = 0;
+        setPendingCount(pending.length);
+        for(const e of pending){
+          setSyncStatus(`synchronizuji: odesílám ${++i}/${pending.length}…`);
+          if(await pushEntry(e)) ok++;
+          setPendingCount(pending.length - ok);   // ať je vidět, že se fronta zkracuje
+        }
         return { total: pending.length, ok };
       }
 
@@ -1278,43 +1309,100 @@
         return sig(a) !== sig(b);
       }
 
-      // Stáhne z cloudu: nové záznamy přidá, u existujících (bez rozpracovaných lokálních změn) doplní změny (např. office z jiného zařízení)
-      async function pullFromCloud(){
-        const { data: rows, error } = await withTimeout(sb.from('entries').select('*'), 20000, 'načítání záznamů');
-        if(error) throw error;
+      // Stáhne z cloudu: nové záznamy přidá, u existujících (bez rozpracovaných lokálních změn) doplní změny (např. office z jiného zařízení).
+      // Čte se PO STRÁNKÁCH a od nejnovějších: řádky nesou base64 fotky i PDF, takže jeden `select('*')`
+      // přes celou tabulku spadl na časovém limitu (a nestáhlo se nic) a zároveň narazil na limit 1000 řádků.
+      // Když stránka selže, co je stažené zůstane a zbytek se dotáhne při dalším syncu.
+      const PULL_PAGE = 25;
+      // Malá pole bez base64 (fotky, PDF) – pro „lehký" pull, který jen zjistí, co se změnilo.
+      const LIGHT_COLS = 'id,time,time_text,coords,long_note,cross_note,note,folder,vyjeta_kolej,inspectors,office_done';
+      // Liší se cloudový řádek od lokálního záznamu v malých polích? (fotky se takhle porovnat nedají)
+      function lightRowDiffers(local, r){
+        const a = JSON.stringify([local.timeText||'', local.coords||null, local.longNote||'', local.crossNote||'',
+          local.note||'', local.folder||'', !!local.vyjetaKolej, local.inspectors||'', !!local.officeDone]);
+        const b = JSON.stringify([r.time_text||'', r.coords||null, r.long_note||'', r.cross_note||'',
+          r.note||'', r.folder||'', !!r.vyjeta_kolej, r.inspectors||'', !!r.office_done]);
+        return a !== b;
+      }
+      // Stáhne z cloudu: nové záznamy přidá, u existujících (bez rozpracovaných lokálních změn) doplní změny (např. office z jiného zařízení).
+      // Čte se PO STRÁNKÁCH a od nejnovějších: řádky nesou base64 fotky i PDF, takže jeden `select('*')`
+      // přes celou tabulku spadl na časovém limitu (a nestáhlo se nic) a zároveň narazil na limit 1000 řádků.
+      // Když stránka selže, co je stažené zůstane a zbytek se dotáhne při dalším syncu.
+      // `light:true` (auto-sync na pozadí) stahuje jen malá pole a plný řádek dotáhne jen u záznamů,
+      // které lokálně chybí nebo se liší → jinak by pravidelný sync tahal všechny fotky znovu (free tier / egress).
+      async function pullFromCloud(opts){
+        const light = !!(opts && opts.light);
         const local = await localTimeout(getAllEntries(), 8000, 'čtení lokální DB (pull)');
         const localMap = new Map(local.map(e=>[e.id, e]));
         const deleted = new Set(getDeletedIds()); // smazané nestahovat zpět
-        let added = 0, updated = 0;
-        for(const r of rows){
-          if(deleted.has(r.id)){ deleteFromCloud(r.id).then(ok=>{ if(ok) unmarkDeleted(r.id); }); continue; } // smaž i v cloudu a přeskoč
-          const existing = localMap.get(r.id);
-          if(existing && existing.synced === false) continue; // lokální nesynchronizovaná změna má přednost (dosynchronizuje se odesláním)
-          const entry = await entryFromRow(r);
-          if(!existing){ try{ await addEntry(entry); added++; }catch(e){ /* už existuje */ } }
-          else if(entriesDiffer(existing, entry)){ try{ await updateEntry(entry); updated++; }catch(e){} }
+        let added = 0, updated = 0, seen = 0, incomplete = '';
+        for(let page = 0; ; page++){
+          const from = page * PULL_PAGE;
+          let rows;
+          try{
+            const res = await withTimeout(
+              sb.from('entries').select(light ? LIGHT_COLS : '*')
+                .order('time', { ascending:false }).order('id', { ascending:false })   // stabilní pořadí mezi stránkami
+                .range(from, from + PULL_PAGE - 1),
+              20000, `stahování záznamů ${from + 1}–${from + PULL_PAGE}`);
+            if(res.error) throw res.error;
+            rows = res.data || [];
+          }catch(err){
+            incomplete = (err && err.message) ? err.message : String(err);
+            console.warn('pullFromCloud – stránka', from, 'selhala:', incomplete);
+            break;
+          }
+          if(!rows.length) break;
+          for(let r of rows){
+            if(deleted.has(r.id)){ deleteFromCloud(r.id).then(ok=>{ if(ok) unmarkDeleted(r.id); }); continue; } // smaž i v cloudu a přeskoč
+            const existing = localMap.get(r.id);
+            if(existing && existing.synced === false) continue; // lokální nesynchronizovaná změna má přednost (dosynchronizuje se odesláním)
+            if(light){
+              if(existing && !lightRowDiffers(existing, r)) continue;   // nic nového → fotku netahej
+              try{
+                const one = await withTimeout(sb.from('entries').select('*').eq('id', r.id).single(), 20000, 'stahování záznamu ' + r.id);
+                if(one.error) throw one.error;
+                r = one.data;
+              }catch(err){
+                incomplete = (err && err.message) ? err.message : String(err);
+                console.warn('pullFromCloud – záznam', r.id, 'se nepodařilo dotáhnout:', incomplete);
+                continue;
+              }
+            }
+            const entry = await entryFromRow(r);
+            if(!existing){ try{ await addEntry(entry); added++; }catch(e){ /* už existuje */ } }
+            else if(entriesDiffer(existing, entry)){ try{ await updateEntry(entry); updated++; }catch(e){} }
+          }
+          seen += rows.length;
+          setSyncStatus(`synchronizuji: ${light ? 'kontroluji' : 'stahuji'}… ${seen} (nových ${added})`);
+          if(rows.length < PULL_PAGE) break;   // poslední stránka
         }
-        return added + updated;
+        return { added, updated, incomplete };
       }
 
       // Obousměrná synchronizace
       let syncing = false;
-      async function syncNow(){
+      let lastSyncAt = 0;   // kvůli auto-syncu (vrácení do okna / časovač)
+      // opts.light = auto-sync na pozadí: stáhne jen malá pole a fotky dotáhne u toho, co se změnilo
+      async function syncNow(opts){
         if(syncing) return;
         if(!navigator.onLine){ setSyncStatus('● offline'); return; }
+        const light = !!(opts && opts.light);
         syncing = true;
         lastSyncError = '';
         try{
           setSyncStatus('synchronizuji: odesílám…');
           const pushed = await pushUnsynced();
-          setSyncStatus('synchronizuji: stahuji…');
-          const pulled = await pullFromCloud();
-          await renderFoldersAndEntries();
-          if(pushed.ok < pushed.total){
-            setSyncStatus(`⚠ odesláno ${pushed.ok}/${pushed.total} (↓${pulled}) – ${lastSyncError || 'odeslání selhalo'}`);
-          } else {
-            setSyncStatus(`✓ hotovo (↑${pushed.ok} ↓${pulled})`);
-          }
+          setSyncStatus(light ? 'synchronizuji: kontroluji novinky…' : 'synchronizuji: stahuji…');
+          const pulled = await pullFromCloud({ light });
+          await renderFoldersAndEntries(znFolderShown);   // nezavírej otevřenou složku (auto-sync běží i při práci)
+          lastSyncAt = Date.now();
+          const dl = pulled.added + pulled.updated;
+          let txt = pushed.ok < pushed.total
+            ? `⚠ odesláno ${pushed.ok}/${pushed.total} (↓${dl}) – ${lastSyncError || 'odeslání selhalo'}`
+            : `✓ hotovo (↑${pushed.ok} ↓${dl})`;
+          if(pulled.incomplete) txt += ` · ⚠ stahování nedokončeno: ${pulled.incomplete}`;
+          setSyncStatus(txt);
         }catch(err){ setSyncStatus('✕ ' + (err && err.message ? err.message : err)); console.warn('sync:', err && err.message ? err.message : err); }
         finally{ syncing = false; }
       }
@@ -3234,6 +3322,7 @@
       async function renderFoldersAndEntries(folderToShow = null) {
         znFolderShown = folderToShow;
         const allEntries = await getAllEntries();
+        updatePendingFrom(allEntries);   // „⏳ N čeká na odeslání" v liště i v šuplíku
         const foldersEl = document.getElementById('folders');
         const entriesEl = document.getElementById('entries');
         const statusEl = document.getElementById('status');
@@ -3503,7 +3592,7 @@
         });
 
         document.getElementById('logout-btn').addEventListener('click', async ()=>{ await sb.auth.signOut(); });
-        document.getElementById('sync-now').addEventListener('click', ()=> syncNow());
+        document.querySelectorAll('.sync-btn').forEach(b=> b.addEventListener('click', ()=> syncNow()));
         document.querySelectorAll('.update-btn').forEach(b=> b.addEventListener('click', async (e)=>{
           const btn = e.currentTarget; btn.disabled = true; btn.textContent = 'Aktualizuji…';
           // Reload provedeme VŽDY, i kdyby úklid uvízl (Android/PWA občas zasekne caches/SW promisy).
@@ -3521,6 +3610,19 @@
         }));
         window.addEventListener('online', ()=> syncNow());
         window.addEventListener('offline', ()=> setSyncStatus('● offline'));
+
+        // Auto-sync: při vrácení do okna (nejvýš raz za minutu) a na pozadí každých 5 minut.
+        // Bez toho na PC záznamy z tabletu nepřijdou, dokud appku někdo znovu nenačte —
+        // sync se dřív spouštěl jen při startu a z tlačítka v šuplíku (na ≥1000 px nedosažitelném).
+        const AUTO_SYNC_MS = 5 * 60 * 1000, FOCUS_SYNC_MS = 60 * 1000;
+        function autoSync(minGap){
+          if(!heavyInitDone || syncing || !navigator.onLine) return;
+          if(Date.now() - lastSyncAt < minGap) return;
+          syncNow({ light:true });   // na pozadí lehce, tlačítko / start appky dělá plný sync
+        }
+        document.addEventListener('visibilitychange', ()=>{ if(!document.hidden) autoSync(FOCUS_SYNC_MS); });
+        window.addEventListener('focus', ()=> autoSync(FOCUS_SYNC_MS));
+        setInterval(()=>{ if(!document.hidden) autoSync(AUTO_SYNC_MS); }, 60 * 1000);
 
         // --- Postranní panel: přepínání karet + mobilní menu ---
         document.querySelectorAll('.nav-item').forEach(btn=>{
