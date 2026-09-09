@@ -986,7 +986,7 @@
 
           <footer>
             Aplikace funguje offline. Data jsou uložena lokálně v zařízení (IndexedDB).<br>
-            <span style="color:var(--muted);font-size:0.95em;">Verze aplikace: v3.2.0-test · Build 2026-09-09·53</span>
+            <span style="color:var(--muted);font-size:0.95em;">Verze aplikace: v3.2.0-test · Build 2026-09-09·54</span>
           </footer>
         </main>
         <!-- Spodní lišta karet: mobil ≤640 px (drawer zůstává pro tablety a jako fallback) -->
@@ -3427,11 +3427,18 @@
             Object.keys(folders).sort().forEach(folderName => {
                 const div = document.createElement('div');
                 div.className = 'folder';
-                
+                div.setAttribute('role', 'button');
+                div.tabIndex = 0;
+                // Klikatelná je CELÁ karta. Dřív poslouchal jen samotný název, takže klik do počtu
+                // záznamů nebo do prázdna „nic neudělal" a složka se otevřela až na druhý pokus.
+                div.addEventListener('click', () => renderFoldersAndEntries(folderName));
+                div.addEventListener('keydown', (e) => {
+                    if(e.key === 'Enter' || e.key === ' '){ e.preventDefault(); renderFoldersAndEntries(folderName); }
+                });
+
                 const folderNameEl = document.createElement('div');
                 folderNameEl.className = 'folder-name';
-                folderNameEl.textContent = escapeHtml(folderName);
-                folderNameEl.addEventListener('click', () => renderFoldersAndEntries(folderName));
+                folderNameEl.textContent = folderName;   // textContent escapuje sám (escapeHtml by ukázal &amp;)
 
                 const folderCountEl = document.createElement('div');
                 folderCountEl.className = 'folder-count';
@@ -3450,12 +3457,17 @@
                     e.stopPropagation();
                     const newFolderName = prompt('Zadejte nový název složky:', folderName);
                     if (newFolderName && newFolderName.trim() && newFolderName.trim() !== folderName) {
+                        const target = newFolderName.trim();
                         const entriesToUpdate = allEntries.filter(entry => (entry.folder || 'Bez složky') === folderName);
                         for (const entry of entriesToUpdate) {
-                            entry.folder = newFolderName.trim();
+                            entry.folder = target;
+                            // Bez `synced:false` přepsal nový název nejbližší pull z cloudu (od Buildu 52
+                            // běží auto-sync i po vrácení do okna, takže se to vracelo hned po zavření promptu).
+                            entry.synced = false;
                             await updateEntry(entry);
                         }
                         await renderFoldersAndEntries();
+                        if(navigator.onLine) pushUnsynced();   // nový název hned do cloudu
                     }
                 };
 
@@ -3567,7 +3579,9 @@
           if(!marker) return;
           const ll = marker.getLatLng();
           entry.coords = { lat: ll.lat.toFixed(6), lon: ll.lng.toFixed(6) };
+          entry.synced = false;                     // jinak upravenou polohu přepíše pull z cloudu
           await updateEntry(entry);
+          if(navigator.onLine) pushEntry(entry);
           editMapContainer.style.display = 'none';
           if(editMap){ editMap.remove(); editMap = null; marker = null; }
           const gc = body.querySelector('.es-gps .c');

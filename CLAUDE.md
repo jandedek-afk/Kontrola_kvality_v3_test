@@ -73,6 +73,7 @@
 - **Architektura: PC = trvalý archiv, cloud = průběžná schránka.** Kvůli free tieru se mají synchronizované záznamy z cloudu maazat (úklid zatím NENÍ hotový). Odhad kapacity free tier (500 MB DB): výjezd s 1 fotkou ~0,3–0,5 MB (≈1000–1500 zázn.), kompletní s foto po opravě/vývrt ~0,8–1,5 MB (≈350–600 zázn.).
 - **Foto po opravě i foto vývrtu jsou taky base64** (v `after_photo` / v `office`) → cloud se plní rychleji, počítat s tím u úklidu.
 - **Mazání záznamu maže i v cloudu + zapisuje „náhrobek"** (`localStorage kk_deleted`), aby se smazané z cloudu nevracely (`deleteEntryFully` / `deleteFromCloud`); `pullFromCloud` náhrobky přeskakuje. Bez toho se smazané záznamy vracely.
+- **Každý zápis do záznamu MUSÍ nastavit `synced:false`** (a ideálně hned `pushEntry`/`pushUnsynced`). Bez toho změnu přepíše nejbližší `pullFromCloud` — od Buildu 52, kdy běží auto-sync, se to projeví hned. V Buildu 54 prověřena všechna volání `updateEntry`; chybělo to u **přejmenování složky** a u **uložení GPS v mobilním detailu** (`viewFull`), dřív i u úpravy GPS v panelu (Build 53).
 - **`pullFromCloud` i AKTUALIZUJE existující záznamy** (kvůli office z jiného zařízení); lokální nesynchronizovaná změna (`synced:false`) má přednost.
 - **GPS je neblokující** — záznam se uloží hned (`coords:null`) a poloha se doplní na pozadí (`fetchCoordsBackground`).
 - **supabase-js používá no-op `auth.lock`** (Web Locks API tuhlo v PWA). Výchozí zámek nezapínat.
@@ -80,7 +81,7 @@
 - Bez potvrzení nemazat data, neměnit DB schéma ani RLS pravidla.
 - Registrace je otevřená; potvrzování e-mailu je v Supabase pro test vypnuté.
 
-## Aktuální stav (v3.2.0-test, Build 53)
+## Aktuální stav (v3.2.0-test, Build 54)
 - **Název appky = jen „Kontrola kvality"** (bez „Foto poznámky") — title, manifest `name`/`short_name`, apple-title, patička (Build 43).
 - **Hotovo (základ):** komprese fotek, přihlášení (otevřená registrace), offline-first ukládání, **funkční obousměrná synchronizace (ověřeno na PC i Androidu)**, mapa, složky, service worker „nejdřív síť", fotka v DB.
 - **Navigace (Build 47):** na **≥1000 px trvalá tmavá vodorovná lišta** `.topnav` (`#14191D`) — 5 karet, vpravo stav synchronizace, ⟳ Aktualizovat a e-mail; plovoucí ☰ je tam skrytý. Na **≤640 px spodní lišta karet** `.botnav` (aktivní oranžově, ≥44 px, `safe-area`). Drawer `.sidebar` s ☰ zůstává pro tablety a jako fallback (nese Synchronizovat / Odhlásit). Stav synchronizace, tlačítko aktualizace a e-mail jsou na dvou místech → adresují se **třídou** (`.sync-state`, `.update-btn`, `.user-email`), ne `id`. Karty přepíná jakýkoli `.nav-item[data-view]`. Tlačítko Zpět přes History API (fullscreen fotka → detail → office formulář → přepne kartu).
@@ -89,6 +90,7 @@
   - Mapa se skrývá atributem `hidden`, proto je potřeba `.es-map[hidden],.es-nomap[hidden]{display:none}` — jinak by `display:flex` na `.es-nomap` `hidden` přebilo.
   - Rozdělaná úprava GPS tažením se ruší jen při přepnutí na **jiný** záznam; u stejného (překreslení z auto-syncu) zůstane marker i tlačítko „Uložit polohu".
   - Uložení polohy v panelu teď nastaví `synced:false` + `pushEntry` — **dřív se upravená poloha do cloudu nikdy nedostala**.
+- **Složky (Build 54):** **klikatelná je celá karta složky** (`role="button"`, funguje i Enter/mezera) — dřív poslouchal jen `.folder-name`, takže klik do počtu záznamů nebo do prázdna „nic neudělal" a složka se zdánlivě otevírala až na druhý pokus. **Přejmenování** nastaví `synced:false` u všech záznamů složky a hned zavolá `pushUnsynced()`; dřív se nový název do cloudu nedostal a nejbližší pull ho přepsal zpátky. `folder-name` plní `textContent` **bez** `escapeHtml` (to by v názvu ukázalo `&amp;`).
 - **Kontrolní výjezd:**
   - „**Kontrolu provádí**" = sbalený výběr jmen (chipy + „+", zdroj osob = Nastavení / localStorage `kk_persons`).
   - „**Foto opravy**" = jedno tlačítko rovnou kamera (`capture`), info „i" (foto z odstupu, okolí min. 2 m).
