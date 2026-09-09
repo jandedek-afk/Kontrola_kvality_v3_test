@@ -580,6 +580,8 @@
     .es-map{height:214px;width:100%}
     .es-nomap{height:214px;display:flex;align-items:center;justify-content:center;
       background:var(--surface-sunken);color:var(--text-faint);font-size:var(--fs-body-sm)}
+    /* skrývání atributem hidden musí přebít display:flex výše */
+    .es-map[hidden],.es-nomap[hidden]{display:none}
     .es-gps{display:flex;align-items:center;gap:8px;padding:0 12px 11px;flex-wrap:wrap}
     .es-gps .c{font-family:var(--font-num);font-size:var(--fs-meta);color:var(--text-body)}
     .es-gps .btn-small{margin-left:auto}
@@ -984,7 +986,7 @@
 
           <footer>
             Aplikace funguje offline. Data jsou uložena lokálně v zařízení (IndexedDB).<br>
-            <span style="color:var(--muted);font-size:0.95em;">Verze aplikace: v3.2.0-test · Build 2026-09-01·52</span>
+            <span style="color:var(--muted);font-size:0.95em;">Verze aplikace: v3.2.0-test · Build 2026-09-09·53</span>
           </footer>
         </main>
         <!-- Spodní lišta karet: mobil ≤640 px (drawer zůstává pro tablety a jako fallback) -->
@@ -2394,7 +2396,19 @@
         }
       }
 
-      async function getEntryById(id){ const all = await getAllEntries(); return all.find(x=>x.id===id); }
+      // Jeden záznam přes klíč. Dřív to šlo přes getAllEntries() → každé kliknutí v seznamu
+      // přečetlo z IndexedDB všechny záznamy včetně base64 fotek (u stovky záznamů desítky MB → sekání).
+      function getEntryById(id){
+        const run = ()=> new Promise((res, rej)=>{
+          const tx = db.transaction([STORE_NAME],'readonly');
+          const r = tx.objectStore(STORE_NAME).get(id);
+          r.onsuccess = ()=> res(r.result || undefined);
+          r.onerror = ()=> rej(r.error);
+        });
+        const result = idbReadChain.then(run, run);   // stejná fronta jako getAllEntries (Android)
+        idbReadChain = result.catch(()=>{});
+        return result;
+      }
 
       // Malý verdikt rovinatosti pro tabulku (zelené/červené pozadí, normální písmo, bez ikony)
       function rovinatostBadgeSmall(longStr, crossStr){
@@ -2484,7 +2498,8 @@
       const MM_LIMIT = 10, MM_CEIL = 20, MM_SHARE = 75;   // mez / strop stupnice / požadovaný podíl v %
       let detailId = null;              // záznam právě zobrazený v prostředním panelu
       let znFolderShown = null;         // otevřená složka (pro nabídku ⋯ a mapu v pravém panelu)
-      let znSideMap = null, znSideMapView = null, znSideEditMarker = null;
+      let znSideMap = null, znSideEditMarker = null;
+      let znSideMarkers = null, znSideMarkerById = new Map(), znSideMarkersSig = '', znSideActiveId = null;
 
       function pluralHodnot(n){ return n===1 ? '1 hodnota' : (n>=2 && n<=4 ? n+' hodnoty' : n+' hodnot'); }
       function fmtMm(v){ return String(Math.round(v*10)/10).replace('.', ','); }
@@ -2598,17 +2613,14 @@
           : '<button type="button" class="btn-primary" data-ed="office">Doplnit v Office</button>';
         return `<div class="ed-bar">${prim}<span class="st">${entry.synced?'✓ odesláno':'⏳ neodesláno'}</span></div>`;
       }
-      // Pravý panel: mapa + GPS + dokumenty. withMap=false → jen GPS a dokumenty (mobilní detail).
-      function buildEntrySideHtml(entry, withMap){
+      // Souřadnice + tlačítko Upravit (vnitřek .es-gps)
+      function buildEntryGpsHtml(entry){
         const c = entry.coords;
-        const coordsTxt = c ? escapeHtml(c.lat + ', ' + c.lon) : 'bez polohy';
-        const mapa = withMap
-          ? `<div class="es-card"><span class="h">Poloha</span>`
-            + (c ? '<div id="es-map" class="es-map"></div>' : '<div class="es-nomap">bez polohy</div>')
-            + `<div class="es-gps"><span class="c">${coordsTxt}</span>`
-            + `<button type="button" class="btn-small" data-ed="coords">Upravit</button></div></div>`
-          : `<div class="es-card"><span class="h">GPS</span><div class="es-gps"><span class="c">${coordsTxt}</span>`
-            + `<button type="button" class="btn-small" data-ed="coords">Upravit</button></div></div>`;
+        return `<span class="c">${c ? escapeHtml(c.lat + ', ' + c.lon) : 'bez polohy'}</span>`
+          + `<button type="button" class="btn-small" data-ed="coords">Upravit</button>`;
+      }
+      // Vnitřek karty Dokumenty (PDF opravy, protokol, foto)
+      function buildEntryDocsHtml(entry){
         const reps = (entry.office && Array.isArray(entry.office.repairs)) ? entry.office.repairs.filter(r=>r.pdf) : [];
         const pdfRows = reps.length
           ? reps.map((r,i)=>`<button type="button" class="es-doc" data-ed="pdf" data-idx="${i}">📄 Záznam o opravě${reps.length>1?' #'+(i+1):''}<span class="n">PDF</span></button>`).join('')
@@ -2621,7 +2633,34 @@
         const fotoRow = entry.photo
           ? `<button type="button" class="es-doc" data-ed="photo-dl">📷 Foto při kontrole<span class="n">${photoSizeMb(entry.photo)}</span></button>`
           : '<button type="button" class="es-doc" disabled>📷 Foto při kontrole<span class="n">chybí</span></button>';
-        return `<div class="es">${mapa}<div class="es-card"><span class="h">Dokumenty</span>${pdfRows}${protoRow}${fotoRow}</div></div>`;
+        return `<span class="h">Dokumenty</span>${pdfRows}${protoRow}${fotoRow}`;
+      }
+      // Pravý panel: mapa + GPS + dokumenty. withMap=false → jen GPS a dokumenty (mobilní detail).
+      // V panelu (≥1200 px) se tohle vykreslí JEN JEDNOU – přepínání záznamů pak jede přes
+      // renderSidePane(), aby se nemusel rušit a znovu stavět Leaflet (blikání mapy).
+      function buildEntrySideHtml(entry, withMap){
+        const mapa = withMap
+          ? `<div class="es-card"><span class="h">Poloha</span>`
+            + `<div id="es-map" class="es-map"></div><div class="es-nomap" id="es-nomap" hidden>bez polohy</div>`
+            + `<div class="es-gps" id="es-gps">${buildEntryGpsHtml(entry)}</div></div>`
+          : `<div class="es-card"><span class="h">GPS</span>`
+            + `<div class="es-gps" id="es-gps">${buildEntryGpsHtml(entry)}</div></div>`;
+        return `<div class="es">${mapa}<div class="es-card" id="es-docs">${buildEntryDocsHtml(entry)}</div></div>`;
+      }
+      // Přepnutí záznamu v pravém panelu: překresli jen GPS řádek a dokumenty, mapu nech žít.
+      function renderSidePane(sEl, entry){
+        const fresh = !sEl.querySelector('#es-map');
+        if(fresh) sEl.innerHTML = buildEntrySideHtml(entry, true);
+        else {
+          // Rozdělaná úprava polohy patří k předchozímu záznamu → zruš ji. U stejného záznamu ji nech
+          // být (překreslení může přijít z auto-syncu, zrovna když uživatel táhne markerem) a nepřepisuj
+          // GPS řádek, jinak by z něj zmizelo i tlačítko „Uložit polohu".
+          if(znSideActiveId !== entry.id) endSideCoordEdit();
+          if(!znSideEditMarker) sEl.querySelector('#es-gps').innerHTML = buildEntryGpsHtml(entry);
+          sEl.querySelector('#es-docs').innerHTML = buildEntryDocsHtml(entry);
+        }
+        syncSideMap(entry, fresh);
+        wireEntryDetail(sEl, entry, { folder: znFolderShown, onEditCoords: ()=> toggleSideCoordEdit(entry) });
       }
       // Akce v detailu (stejné hooky v panelu i ve #viewer)
       function wireEntryDetail(root, entry, ctx){
@@ -2922,41 +2961,71 @@
           return;
         }
         dEl.innerHTML = buildEntryDetailHtml(entry);
-        sEl.innerHTML = buildEntrySideHtml(entry, true);
         wireEntryDetail(dEl, entry, { folder: znFolderShown });
-        wireEntryDetail(sEl, entry, { folder: znFolderShown, onEditCoords: ()=> toggleSideCoordEdit(entry) });
-        initSideMap(entry);
+        renderSidePane(sEl, entry);
       }
       // --- Mapa v pravém panelu: body obarvené podle verdiktu, aktivní větší s oranžovým kroužkem ---
       function sideMapSig(){ return (znFolderShown||'') + '|' + (lastFiltered ? lastFiltered.length : 0); }
       function destroySideMap(){
         if(znSideMap){ znSideMap.remove(); znSideMap = null; }
         znSideEditMarker = null;
+        znSideMarkers = null; znSideMarkerById = new Map(); znSideMarkersSig = ''; znSideActiveId = null;
       }
-      function initSideMap(active){
-        destroySideMap();
-        const el = document.getElementById('es-map');
-        if(!el || !active.coords) return;
-        znSideMap = L.map(el, { zoomControl:false, attributionControl:false });
-        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom:19 }).addTo(znSideMap);
-        L.control.zoom({ position:'bottomright' }).addTo(znSideMap);
-        (lastFiltered || []).filter(e=> e.coords).forEach(e=>{
-          const stav = entryStav(rovinatostStats(e.longNote, e.crossNote));
-          const col = stav==='bad' ? '#c62828' : (stav==='warn' ? '#d69220' : (stav==='ok' ? '#1e7d34' : '#a9b4bb'));
-          const aktiv = e.id === active.id;
-          L.circleMarker([+e.coords.lat, +e.coords.lon], {
-            radius: aktiv?9:5, color: aktiv?'#C2461A':'#ffffff', weight: aktiv?3:1.5,
-            fillColor: col, fillOpacity: 0.95
-          }).addTo(znSideMap).on('click', ()=> openEntryDetail(e.id));
-        });
+      // Barva bodu podle verdiktu rovinatosti
+      function sideMarkerFill(e){
+        const stav = entryStav(rovinatostStats(e.longNote, e.crossNote));
+        return stav==='bad' ? '#c62828' : (stav==='warn' ? '#d69220' : (stav==='ok' ? '#1e7d34' : '#a9b4bb'));
+      }
+      function styleSideMarker(rec, active){
+        rec.m.setStyle({ color: active?'#C2461A':'#ffffff', weight: active?3:1.5,
+          fillColor: rec.fill, fillOpacity: 0.95 });
+        rec.m.setRadius(active ? 9 : 5);
+        if(active) rec.m.bringToFront();
+      }
+      // Mapa se staví jen jednou; při přepnutí záznamu se přebarví starý a nový bod a případně popojede.
+      // (Dřív se celý Leaflet i dlaždice rušily a stavěly znovu → mapa blikala a přepínání sekalo.)
+      function syncSideMap(active, fresh){
+        const mapEl = document.getElementById('es-map'), noEl = document.getElementById('es-nomap');
+        if(!mapEl) return;
+        const has = !!(active && active.coords);
+        const wasHidden = mapEl.hidden;
+        mapEl.hidden = !has;
+        if(noEl) noEl.hidden = has;
+        if(!has) return;
         const c = [+active.coords.lat, +active.coords.lon];
-        if(znSideMapView && znSideMapView.sig === sideMapSig()) znSideMap.setView(znSideMapView.center, znSideMapView.zoom);
-        else znSideMap.setView(c, 16);
+        let justBuilt = false;
+        if(!znSideMap){
+          znSideMap = L.map(mapEl, { zoomControl:false, attributionControl:false });
+          L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom:19 }).addTo(znSideMap);
+          L.control.zoom({ position:'bottomright' }).addTo(znSideMap);
+          znSideMap.setView(c, 16);
+          justBuilt = true;
+        }
+        // Body přestav jen když se změnila sada (jiná složka / jiný filtr)
+        const sig = sideMapSig();
+        if(!znSideMarkers || sig !== znSideMarkersSig){
+          if(znSideMarkers) znSideMarkers.remove();
+          znSideMarkers = L.layerGroup().addTo(znSideMap);
+          znSideMarkerById = new Map();
+          znSideActiveId = null;
+          (lastFiltered || []).filter(e=> e.coords).forEach(e=>{
+            const m = L.circleMarker([+e.coords.lat, +e.coords.lon], {
+              radius:5, color:'#ffffff', weight:1.5, fillColor: sideMarkerFill(e), fillOpacity:0.95
+            }).addTo(znSideMarkers).on('click', ()=> openEntryDetail(e.id));
+            znSideMarkerById.set(e.id, { m, fill: sideMarkerFill(e) });
+          });
+          znSideMarkersSig = sig;
+        }
+        // přebarvi jen předchozí a nový aktivní bod
+        if(znSideActiveId && znSideActiveId !== active.id){
+          const prev = znSideMarkerById.get(znSideActiveId);
+          if(prev) styleSideMarker(prev, false);
+        }
+        const cur = znSideMarkerById.get(active.id);
+        if(cur) styleSideMarker(cur, true);
+        znSideActiveId = active.id;
         if(!znSideMap.getBounds().contains(c)) znSideMap.panTo(c);
-        znSideMap.on('moveend', ()=>{
-          if(znSideMap) znSideMapView = { sig: sideMapSig(), center: znSideMap.getCenter(), zoom: znSideMap.getZoom() };
-        });
-        setTimeout(()=>{ if(znSideMap) znSideMap.invalidateSize(); }, 60);
+        if(justBuilt || fresh || wasHidden) setTimeout(()=>{ if(znSideMap) znSideMap.invalidateSize(); }, 60);
       }
       // Přesun kontrolního bodu přímo v pravém panelu (tažením markeru)
       function toggleSideCoordEdit(entry){
@@ -2970,7 +3039,9 @@
         save.onclick = async ()=>{
           const ll = znSideEditMarker.getLatLng();
           entry.coords = { lat: ll.lat.toFixed(6), lon: ll.lng.toFixed(6) };
+          entry.synced = false;                       // bez tohohle se upravená poloha nikdy nedostala do cloudu
           await updateEntry(entry);
+          if(navigator.onLine) pushEntry(entry);
           endSideCoordEdit();
           await renderDetailPane();
         };
