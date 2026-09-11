@@ -56,6 +56,7 @@
   **Pozor:** v headless se init appky zasekne / skončí na `sb.auth.getSession()` (Supabase je nedostupné) → appka pak sama zobrazí přihlášení a **listenery navěšené po tom awaitu nefungují**.
   V pomocné stránce se to obejde `w.showLogin = ()=>{}` a `w.getAllEntries = ()=> Promise.resolve(testovaciData)`. **Zadávání hodnot, ukládání a synchronizaci takhle ověřit nelze** — to jen naživo.
   Pomocné stránky do repa necommituj (jsou ve scratchpadu session).
+- **Test archivu na disk:** stejný postup, jen se podvrhne `window.showDirectoryPicker` a vrátí se souborový strom v paměti (`getDirectoryHandle`/`getFileHandle`/`createWritable`/`queryPermission`). Pozor: fake handle **nejde uložit do IndexedDB** (obsahuje funkce → DataCloneError), takže se v testu přepíše i `settingsSet`.
 - **Test synchronizace bez cloudu:** kopie `index.html` s podvrženým `window.supabase.createClient` (vložit `<script>` **před** appkový inline script) + driver na konci `<body>`; fake klient musí být *thenable* (`q.then`), aby fungovalo `await sb.from(...)...`. **Pozor: `--virtual-time-budget` zamrzne IndexedDB** (`indexedDB.open` nikdy nedoběhne) → místo něj běž v reálném čase a odlož `load` event obrázkem z pomalého endpointu (`slowserver.py` ve scratchpadu), pak `--dump-dom` stihne výsledky. Takhle jde ověřit stránkování, lehký pull, přednost lokálních změn i náhrobky.
 
 <!-- Vydání aktualizace uživatelům = zvednout verzi NA ČTYŘECH místech zároveň:
@@ -70,7 +71,7 @@
 ## Důležitá rozhodnutí a omezení
 - **Nesahat na `../v2` (produkce) bez výslovného pokynu** — má vlastní repo a nasazuje se zvlášť.
 - **Fotka se ukládá jako base64 přímo do sloupce `entries.photo`**, NE do Supabase Storage (upload přes Storage tuhnul na Androidu). Neměnit zpět.
-- **Architektura: PC = trvalý archiv, cloud = průběžná schránka.** Kvůli free tieru se mají synchronizované záznamy z cloudu maazat (úklid zatím NENÍ hotový). Odhad kapacity free tier (500 MB DB): výjezd s 1 fotkou ~0,3–0,5 MB (≈1000–1500 zázn.), kompletní s foto po opravě/vývrt ~0,8–1,5 MB (≈350–600 zázn.).
+- **Architektura: PC = trvalý archiv, cloud = průběžná schránka.** Trvalý archiv je od Buildu 57 **opravdu na disku** (Nastavení → 💾 Archiv na disku), ne jen v IndexedDB — prohlížečové úložiště smaže vyčištění dat, nový profil i přeinstalace, takže bez archivu na disku se **nesmí uklízet cloud**. Kvůli free tieru se mají synchronizované záznamy z cloudu maazat (úklid zatím NENÍ hotový). Odhad kapacity free tier (500 MB DB): výjezd s 1 fotkou ~0,3–0,5 MB (≈1000–1500 zázn.), kompletní s foto po opravě/vývrt ~0,8–1,5 MB (≈350–600 zázn.).
 - **Foto po opravě i foto vývrtu jsou taky base64** (v `after_photo` / v `office`) → cloud se plní rychleji, počítat s tím u úklidu.
 - **Mazání záznamu maže i v cloudu + zapisuje „náhrobek"** (`localStorage kk_deleted`), aby se smazané z cloudu nevracely (`deleteEntryFully` / `deleteFromCloud`); `pullFromCloud` náhrobky přeskakuje. Bez toho se smazané záznamy vracely.
 - **Každý zápis do záznamu MUSÍ nastavit `synced:false`** (a ideálně hned `pushEntry`/`pushUnsynced`). Bez toho změnu přepíše nejbližší `pullFromCloud` — od Buildu 52, kdy běží auto-sync, se to projeví hned. V Buildu 54 prověřena všechna volání `updateEntry`; chybělo to u **přejmenování složky** a u **uložení GPS v mobilním detailu** (`viewFull`), dřív i u úpravy GPS v panelu (Build 53).
@@ -81,7 +82,7 @@
 - Bez potvrzení nemazat data, neměnit DB schéma ani RLS pravidla.
 - Registrace je otevřená; potvrzování e-mailu je v Supabase pro test vypnuté.
 
-## Aktuální stav (v3.2.0-test, Build 56)
+## Aktuální stav (v3.2.0-test, Build 57)
 - **Název appky = jen „Kontrola kvality"** (bez „Foto poznámky") — title, manifest `name`/`short_name`, apple-title, patička (Build 43).
 - **Hotovo (základ):** komprese fotek, přihlášení (otevřená registrace), offline-first ukládání, **funkční obousměrná synchronizace (ověřeno na PC i Androidu)**, mapa, složky, service worker „nejdřív síť", fotka v DB.
 - **Navigace (Build 47):** na **≥1000 px trvalá tmavá vodorovná lišta** `.topnav` (`#14191D`) — 5 karet, vpravo stav synchronizace, ⟳ Aktualizovat a e-mail; plovoucí ☰ je tam skrytý. Na **≤640 px spodní lišta karet** `.botnav` (aktivní oranžově, ≥44 px, `safe-area`). Drawer `.sidebar` s ☰ zůstává pro tablety a jako fallback (nese Synchronizovat / Odhlásit). Stav synchronizace, tlačítko aktualizace a e-mail jsou na dvou místech → adresují se **třídou** (`.sync-state`, `.update-btn`, `.user-email`), ne `id`. Karty přepíná jakýkoli `.nav-item[data-view]`. Tlačítko Zpět přes History API (fullscreen fotka → detail → office formulář → přepne kartu).
@@ -110,6 +111,11 @@
   - **Odznáček `.sync-pending`** („⏳ N čeká na odeslání") v liště i v šuplíku; `setPendingCount` / `updatePendingFrom(entries)` se přepočítá při každém `renderFoldersAndEntries`. `pushUnsynced` hlásí průběh „odesílám 3/20…".
   - `syncNow` překresluje `renderFoldersAndEntries(znFolderShown)` — auto-sync nesmí zavřít otevřenou složku.
 - **Office data SE SYNCHRONIZUJÍ do cloudu** (migrace sloupců `office/after_photo/vyjeta_kolej/inspectors/office_done` **byla spuštěna** v Supabase). `pushEntry` má pojistku pro starou DB (uloží aspoň základní pole).
+- **Archiv na disk (Build 57):** karta **Nastavení → 💾 Archiv na disku**. Jednou se vybere složka (`showDirectoryPicker`; handle se ukládá do IndexedDB do nového úložiště `settings` → **DB_VERSION 3**, `initDB` má i `onblocked`) a dál se do ní přírůstkově zapisuje: `<archiv>/<složka záznamu>/zaznamy.json` (JSON **bez base64**) + fotky a PDF jako soubory pojmenované podle `id_cev`, jinak podle `id` — `59_pri-kontrole.jpg`, `59_po-oprave.jpg`, `59_zaznam-o-oprave-1.pdf`, `59_vyvrt.jpg`. Stejný obsah = jeden soubor (foto po opravě je i v `office.repairs`, proto dedup podle dataURL).
+  - `_archiv-index.json` v kořeni drží `archiveSig` každého zapsaného záznamu → další běh zapisuje **jen změny**. Index leží v archivu, takže se stěhuje spolu se složkou.
+  - **Archiv se nezmenšuje:** `zaznamy.json` se slučuje podle `id`, takže záznam smazaný v appce nebo přesunutý jinam v archivu zůstane.
+  - Spouští se po syncu **jen když se něco změnilo** (`pushed.ok + staženo > 0`) — `runArchive` čte celou DB, takže ho nesmí budit každý auto-sync naprázdno. Při startu appky levná kontrola `countEntries()` vs. velikost indexu.
+  - **Jen Chrome/Edge na PC** (File System Access API). Na tabletu se karta ukáže s vysvětlením a nic nedělá. Zápis potřebuje povolení; bez uživatelského kliknutí se prohlížeč ptát nesmí, proto stav hlásí „čeká na povolení zápisu" a povolí se tlačítkem „Zálohovat teď".
 - **Nastavení:** správa „Kontrolujících osob" (rozklikávací pole).
 - **Next steps:**
   - **úklid cloudu** (mazat synchronizované řádky → udržet free tier) — stále nehotové, **priorita**; viz „Plánované práce" níže;
@@ -123,6 +129,7 @@ Poznámky z domluvy s uživatelem (2026-07-15), ať se na to nezapomene:
 ### 1) Úklid cloudu (priorita – reálně šetří kapacitu)
 - **Problém:** free tier Supabase = 500 MB DB; místo žerou hlavně **base64 fotky a PDF** (`photo` ~0,3–0,5 MB, `after_photo` + `office.repairs[].pdf` ~1–2 MB/záznam). Architektura je **PC = trvalý archiv, cloud = průběžná schránka** → synchronizované řádky se z cloudu mají mazat, ale úklid **není hotový**.
 - **Směr řešení (návrh):** po úspěšném stažení na „archivní" zařízení (PC) mazat staré synchronizované řádky z cloudu; ohlídat náhrobky (`kk_deleted`), ať se přes `pullFromCloud` nevrátí; nemazat rozpracované (`synced:false`).
+- **Předpoklad je od Buildu 57 splněný:** archiv na disku existuje, takže podmínkou pro smazání řádku z cloudu může být „záznam je v `_archiv-index.json`", ne jen „je v IndexedDB".
 - Pozor na scénář, kdy záznam ještě nestáhla všechna zařízení – nemazat předčasně.
 
 ### 2) SQL migrace – odvozené sloupce + indexy (odloženo, ne kvůli kapacitě)
