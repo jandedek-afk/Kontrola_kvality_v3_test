@@ -982,6 +982,19 @@
                 </div>
               </div>
             </div>
+            <div class="settings-card">
+              <button type="button" class="settings-toggle" id="archive-toggle" aria-expanded="false">
+                <span>💾 Archiv na disku</span><span class="chev">▸</span>
+              </button>
+              <div id="archive-panel" hidden>
+                <div class="view-sub" style="margin:0.6rem 0 0.5rem">Po synchronizaci se záznamy zapíšou do zvolené složky jako <b>zaznamy.json</b> + fotky a PDF. Vyber složku, kterou zálohuje OneDrive — data pak nejsou jen v prohlížeči a v cloudu.</div>
+                <div id="archive-state" class="view-sub" style="margin:0 0 0.6rem"></div>
+                <div class="chip-row">
+                  <button id="archive-pick" type="button" class="btn-small">📁 Vybrat složku…</button>
+                  <button id="archive-run" type="button" class="btn-small">💾 Zálohovat teď</button>
+                </div>
+              </div>
+            </div>
           </section>
 
           <footer>
@@ -1085,8 +1098,9 @@
 
       // Lightweight IndexedDB helpers
       const DB_NAME = 'fotoPoznamkyDB';
-      const DB_VERSION = 2;
+      const DB_VERSION = 3;
       const STORE_NAME = 'entries';
+      const SETTINGS_STORE = 'settings';   // drobná nastavení (handle archivní složky) – od v3
       let db;
 
       function initDB(){
@@ -1099,9 +1113,38 @@
               store.createIndex('time','time',{unique:false});
               store.createIndex('folder', 'folder', { unique: false });
             }
+            if(!idb.objectStoreNames.contains(SETTINGS_STORE)) idb.createObjectStore(SETTINGS_STORE, { keyPath:'key' });
           };
+          // jiná otevřená karta s appkou drží starou verzi úložiště → upgrade čeká
+          req.onblocked = ()=> setSyncStatus('⚠ Zavři ostatní karty s aplikací – čeká se na aktualizaci úložiště');
           req.onsuccess = ()=>{ db = req.result; res(db); };
           req.onerror = ()=> rej(req.error);
+        });
+      }
+
+      function settingsGet(key){
+        return new Promise((res, rej)=>{
+          const tx = db.transaction([SETTINGS_STORE],'readonly');
+          const r = tx.objectStore(SETTINGS_STORE).get(key);
+          r.onsuccess = ()=> res(r.result ? r.result.value : undefined);
+          r.onerror = ()=> rej(r.error);
+        });
+      }
+      function settingsSet(key, value){
+        return new Promise((res, rej)=>{
+          const tx = db.transaction([SETTINGS_STORE],'readwrite');
+          const r = tx.objectStore(SETTINGS_STORE).put({ key, value });
+          r.onsuccess = ()=> res(true);
+          r.onerror = ()=> rej(r.error);
+        });
+      }
+      // Počet záznamů bez čtení dat (kvůli kontrole archivu při startu)
+      function countEntries(){
+        return new Promise((res, rej)=>{
+          const tx = db.transaction([STORE_NAME],'readonly');
+          const r = tx.objectStore(STORE_NAME).count();
+          r.onsuccess = ()=> res(r.result || 0);
+          r.onerror = ()=> rej(r.error);
         });
       }
 
@@ -1442,6 +1485,191 @@
         }
       }
 
+      // ===== Archiv na disk (PC = trvalý archiv) =====
+      // IndexedDB je úložiště prohlížeče — vyčištění dat, nový profil nebo přeinstalace ho smažou.
+      // Proto se po synchronizaci zapisují záznamy i do složky na disku: JSON bez base64
+      // + fotky a PDF jako obyčejné soubory. Když je složka v OneDrive, zálohuje se sama.
+      // Používá File System Access API = Chrome/Edge na PC; jinde se archiv nenabízí (na tabletu netřeba).
+      const ARCHIVE_INDEX_FILE = '_archiv-index.json';
+      let archiveDir = null;       // FileSystemDirectoryHandle (uložený v IndexedDB)
+      let archiveIndex = null;     // { id: {sig, folder} } – co už na disku je
+      let archiveBusy = false;
+
+      function archiveSupported(){ return typeof window.showDirectoryPicker === 'function'; }
+      function archiveSafeName(s){
+        return String(s == null ? '' : s).replace(/[^A-Za-z0-9._-]+/g, '_').replace(/^_+|_+$/g, '') || 'bez_nazvu';
+      }
+      // Podpis záznamu – podle něj se pozná, co je potřeba (pře)zapsat
+      function archiveSig(e){
+        return [e.timeText||'', e.folder||'', e.longNote||'', e.crossNote||'', e.note||'', e.inspectors||'',
+          !!e.vyjetaKolej, !!e.officeDone, JSON.stringify(e.office || null).length,
+          e.photo ? e.photo.length : 0, e.afterPhoto ? e.afterPhoto.length : 0].join('|');
+      }
+      // Rozpad záznamu na soubory + „čistý" JSON, kde místo base64 zůstanou názvy souborů
+      function archivePlan(entry){
+        const base = archiveSafeName((entry.office && entry.office.id_cev) || entry.id);
+        const files = [];
+        const seen = new Map();   // stejný obsah = stejný soubor (foto po opravě je i v office.repairs)
+        const put = (dataURL, suffix, ext)=>{
+          if(!dataURL || typeof dataURL !== 'string' || dataURL.slice(0, 5) !== 'data:') return '';
+          if(seen.has(dataURL)) return seen.get(dataURL);
+          const name = base + '_' + suffix + '.' + ext;
+          files.push({ name, dataURL });
+          seen.set(dataURL, name);
+          return name;
+        };
+        const clean = Object.assign({}, entry);
+        clean.photo = put(entry.photo, 'pri-kontrole', 'jpg');
+        clean.afterPhoto = put(entry.afterPhoto, 'po-oprave', 'jpg');
+        if(entry.office){
+          clean.office = Object.assign({}, entry.office);
+          clean.office.vyvrt_foto = put(entry.office.vyvrt_foto, 'vyvrt', 'jpg');
+          clean.office.repairPdf = put(entry.office.repairPdf, 'zaznam-o-oprave', 'pdf');
+          if(Array.isArray(entry.office.repairs)){
+            clean.office.repairs = entry.office.repairs.map((r, i)=>{
+              const n = '-' + (i + 1);   // vždy číslované, ať si oprava nepřepíše foto ze záznamu
+              return Object.assign({}, r, {
+                pdf: put(r.pdf, 'zaznam-o-oprave' + n, 'pdf'),
+                afterPhoto: put(r.afterPhoto, 'po-oprave' + n, 'jpg')
+              });
+            });
+          }
+        }
+        return { files, clean };
+      }
+      async function archiveWrite(dir, name, blob){
+        const fh = await dir.getFileHandle(name, { create:true });
+        const w = await fh.createWritable();
+        await w.write(blob);
+        await w.close();
+      }
+      async function archiveReadJson(dir, name){
+        try{
+          const fh = await dir.getFileHandle(name);
+          return JSON.parse(await (await fh.getFile()).text());
+        }catch(e){ return null; }   // soubor ještě není / nejde přečíst
+      }
+      async function archiveEnsurePermission(interactive){
+        if(!archiveDir) return false;
+        try{
+          const opts = { mode:'readwrite' };
+          if(await archiveDir.queryPermission(opts) === 'granted') return true;
+          if(!interactive) return false;        // bez kliknutí uživatele se prohlížeč ptát nesmí
+          return await archiveDir.requestPermission(opts) === 'granted';
+        }catch(e){ return false; }
+      }
+      async function pickArchiveDir(){
+        if(!archiveSupported()){ alert('Zápis do složky umí Chrome nebo Edge na počítači. Na tabletu to nejde – archiv drží PC.'); return; }
+        try{
+          archiveDir = await window.showDirectoryPicker({ mode:'readwrite', id:'kk-archiv' });
+          archiveIndex = null;
+          await settingsSet('archiveDir', archiveDir);
+          renderArchiveState();
+          const r = await runArchive({ interactive:true });
+          if(r) alert(`Archiv je ve složce „${archiveDir.name}". Zapsáno ${r.written} záznamů${r.failed ? ', ' + r.failed + ' se nepovedlo' : ''}.`);
+        }catch(err){
+          if(err && err.name === 'AbortError') return;   // uživatel dialog zavřel
+          alert('Složku se nepodařilo nastavit: ' + (err && err.message ? err.message : err));
+        }
+      }
+      // Zapíše do archivu vše, co tam ještě není nebo se změnilo (přírůstkově).
+      async function runArchive(opts){
+        const interactive = !!(opts && opts.interactive);
+        if(archiveBusy || !archiveDir || !archiveSupported()) return null;
+        if(!(await archiveEnsurePermission(interactive))){ renderArchiveState(); return null; }
+        archiveBusy = true;
+        let written = 0, failed = 0;
+        try{
+          const all = await getAllEntries();
+          if(!archiveIndex) archiveIndex = (await archiveReadJson(archiveDir, ARCHIVE_INDEX_FILE)) || {};
+          const changed = all.filter(e => !archiveIndex[e.id] || archiveIndex[e.id].sig !== archiveSig(e));
+          if(changed.length){
+            // dotčené složky: aktuální i původní (záznam se mohl přesunout jinam)
+            const folders = new Set();
+            changed.forEach(e=>{
+              folders.add(archiveSafeName(e.folder || 'Bez_slozky'));
+              const prev = archiveIndex[e.id] && archiveIndex[e.id].folder;
+              if(prev) folders.add(prev);
+            });
+            const byFolder = new Map();
+            all.forEach(e=>{
+              const f = archiveSafeName(e.folder || 'Bez_slozky');
+              if(!byFolder.has(f)) byFolder.set(f, []);
+              byFolder.get(f).push(e);
+            });
+            let done = 0;
+            for(const folderName of folders){
+              const dir = await archiveDir.getDirectoryHandle(folderName, { create:true });
+              for(const e of changed.filter(x=> archiveSafeName(x.folder || 'Bez_slozky') === folderName)){
+                setSyncStatus(`archiv: zapisuji ${++done}/${changed.length}…`);
+                try{
+                  const plan = archivePlan(e);
+                  for(const f of plan.files) await archiveWrite(dir, f.name, dataURLtoBlob(f.dataURL));
+                  archiveIndex[e.id] = { sig: archiveSig(e), folder: folderName };
+                  written++;
+                }catch(err){
+                  failed++;
+                  console.warn('archiv – záznam', e.id, 'selhal:', err && err.message ? err.message : err);
+                }
+              }
+              // Přehled složky: co už na disku je + aktuální stav. Sloučeno podle id, takže
+              // záznam smazaný v appce zůstane v archivu (archiv se nemá zmenšovat).
+              const existing = (await archiveReadJson(dir, 'zaznamy.json')) || [];
+              const merged = new Map(existing.map(x=> [x.id, x]));
+              (byFolder.get(folderName) || []).forEach(e=> merged.set(e.id, archivePlan(e).clean));
+              await archiveWrite(dir, 'zaznamy.json',
+                new Blob([JSON.stringify([...merged.values()], null, 2)], { type:'application/json' }));
+            }
+            await archiveWrite(archiveDir, ARCHIVE_INDEX_FILE,
+              new Blob([JSON.stringify(archiveIndex, null, 2)], { type:'application/json' }));
+            localStorage.setItem('kk_archiv_last', formatDate(Date.now()) + ' · ' + Object.keys(archiveIndex).length + ' záznamů');
+          }
+          setSyncStatus(written ? `✓ archiv: zapsáno ${written}` : lastSyncStatusText);
+        }catch(err){
+          failed++;
+          const msg = err && err.message ? err.message : String(err);
+          console.warn('archiv selhal:', msg);
+          setSyncStatus('✕ archiv: ' + msg);
+          if(interactive) alert('Zápis do archivu selhal: ' + msg);
+        }finally{
+          archiveBusy = false;
+          renderArchiveState();
+        }
+        return { written, failed };
+      }
+      // Po startu appky: když je v archivu míň záznamů než v zařízení, dopiš je (levná kontrola přes count)
+      async function archiveStartupCheck(){
+        if(!archiveDir || !archiveSupported()) return;
+        try{
+          if(!(await archiveEnsurePermission(false))) return;
+          if(!archiveIndex) archiveIndex = (await archiveReadJson(archiveDir, ARCHIVE_INDEX_FILE)) || {};
+          if(await countEntries() !== Object.keys(archiveIndex).length) await runArchive();
+        }catch(e){ /* archiv počká na tlačítko v Nastavení */ }
+      }
+      // Stav archivu v Nastavení
+      async function renderArchiveState(){
+        const el = document.getElementById('archive-state');
+        if(!el) return;
+        const pick = document.getElementById('archive-pick'), run = document.getElementById('archive-run');
+        if(!archiveSupported()){
+          el.innerHTML = '⚠ Tenhle prohlížeč neumí zapisovat do složky — funguje to v Chromu nebo Edge na počítači. Na tabletu se nic neděje, archiv drží PC.';
+          if(pick) pick.disabled = true;
+          if(run) run.disabled = true;
+          return;
+        }
+        const last = localStorage.getItem('kk_archiv_last') || '';
+        if(!archiveDir){
+          el.innerHTML = 'Složka zatím není vybraná — <b>archiv se nezapisuje</b>.';
+        } else {
+          let perm = 'prompt';
+          try{ perm = await archiveDir.queryPermission({ mode:'readwrite' }); }catch(e){}
+          el.innerHTML = `Složka: <b>${escapeHtml(archiveDir.name)}</b>`
+            + (perm === 'granted' ? '' : ' · <b style="color:var(--state-wait-text)">čeká na povolení zápisu (klepni na „Zálohovat teď")</b>')
+            + '<br>' + (last ? 'Naposledy zálohováno: ' + escapeHtml(last) : 'Zatím nezálohováno');
+        }
+        if(run) run.disabled = !archiveDir;
+      }
+
       // Obousměrná synchronizace
       let syncing = false;
       let lastSyncAt = 0;   // kvůli auto-syncu (vrácení do okna / časovač)
@@ -1463,6 +1691,8 @@
           let txt = pushed.ok < pushed.total
             ? `⚠ odesláno ${pushed.ok}/${pushed.total} (↓${dl}) – ${lastSyncError || 'odeslání selhalo'}`
             : `✓ hotovo (↑${pushed.ok} ↓${dl})`;
+          // změny dopiš i do archivu na disku (když je nastavený); čte celou DB, tak jen když je co
+          if(archiveDir && (pushed.ok + dl) > 0) runArchive();
           if(pulled.incomplete){
             txt += pulled.failed
               ? ` · ⚠ ${pulled.failed} záznamů se nestáhlo: ${pulled.incomplete}`
@@ -1484,6 +1714,7 @@
         heavyInitDone = true;
         await renderFoldersAndEntries();
         await syncNow();
+        await archiveStartupCheck();
       }
       function showLogin(){
         heavyInitDone = false;
@@ -1535,6 +1766,7 @@
 
       // --- Nastavení: správa kontrolujících osob ---
       function renderSettings(){
+        renderArchiveState();
         const list = document.getElementById('persons-list');
         const persons = getKnownPersons();
         list.innerHTML = persons.length
@@ -3705,6 +3937,7 @@
       // wire up form and registration
       document.addEventListener('DOMContentLoaded', async ()=>{
         await initDB();
+        try{ archiveDir = (await settingsGet('archiveDir')) || null; }catch(e){ archiveDir = null; }
         history.replaceState({v:'vyjezd'}, ''); // základ historie pro tlačítko Zpět
 
         // --- Přihlášení ---
@@ -3894,6 +4127,20 @@
         buildNamesPicker(document.getElementById('dnesni-jmena-picker'), savedNames, sel=>{
           localStorage.setItem('kk_dnesni_jmena', JSON.stringify(sel));
           localStorage.setItem('kk_dnesni_kontroloval', sel.join(', '));
+        });
+
+        // Nastavení: archiv na disku
+        const archiveToggle = document.getElementById('archive-toggle');
+        const archivePanel = document.getElementById('archive-panel');
+        archiveToggle.addEventListener('click', ()=>{
+          const open = archivePanel.hidden;
+          archivePanel.hidden = !open;
+          archiveToggle.setAttribute('aria-expanded', open ? 'true' : 'false');
+        });
+        document.getElementById('archive-pick').addEventListener('click', pickArchiveDir);
+        document.getElementById('archive-run').addEventListener('click', async ()=>{
+          const r = await runArchive({ interactive:true });
+          if(r) alert(`Archiv: zapsáno ${r.written} záznamů${r.failed ? ', ' + r.failed + ' se nepovedlo' : ''}.`);
         });
 
         // Nastavení: rozbalení pole „Kontrolující osoby"
