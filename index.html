@@ -986,7 +986,7 @@
 
           <footer>
             Aplikace funguje offline. Data jsou uložena lokálně v zařízení (IndexedDB).<br>
-            <span style="color:var(--muted);font-size:0.95em;">Verze aplikace: v3.2.0-test · Build 2026-09-11·55</span>
+            <span style="color:var(--muted);font-size:0.95em;">Verze aplikace: v3.2.0-test · Build 2026-09-11·56</span>
           </footer>
         </main>
         <!-- Spodní lišta karet: mobil ≤640 px (drawer zůstává pro tablety a jako fallback) -->
@@ -1366,8 +1366,12 @@
           try{
             // Seznam vždy jen s malými polemi (~200 B/řádek) – tohle nesmí spadnout na limitu.
             const res = await withTimeout(
+              // Řadíme podle `id` (primární klíč), ne podle `time`: na `time` NENÍ index, takže
+              // `order('time')` nutil Postgres přečíst a seřadit celou tabulku → server dotaz zabil
+              // („canceling statement due to statement timeout"). Podle PK jde index scan bez řazení.
+              // Id je `String(Date.now())`, takže `id desc` = zároveň nejnovější první.
               sb.from('entries').select(LIGHT_COLS)
-                .order('time', { ascending:false }).order('id', { ascending:false })   // stabilní pořadí mezi stránkami
+                .order('id', { ascending:false })      // stabilní pořadí mezi stránkami, bez řazení na serveru
                 .range(from, from + PULL_PAGE - 1),
               20000, `seznam záznamů ${from + 1}–${from + PULL_PAGE}`);
             if(res.error) throw res.error;
